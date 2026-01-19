@@ -41,7 +41,7 @@ This isn't just a form; it's an automated receptionist. The application connects
 
 ### 1. Clone the repository
 ```bash
-git clone [https://github.com/yourusername/sister-and-brows.git](https://github.com/yourusername/sister-and-brows.git)
+git clone [https://github.com/2xe2ipii/sisters-and-brows.git](https://github.com/2xe2ipii/sisters-and-brows.git)
 cd sister-and-brows
 ```
 
