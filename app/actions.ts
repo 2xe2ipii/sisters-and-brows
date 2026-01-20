@@ -23,58 +23,37 @@ const formSchema = z.object({
   time: z.string().min(1),
   services: z.union([z.string(), z.array(z.string())]), 
   fbLink: z.string().optional(),
-  fbName: z.string().optional(),
   firstName: z.string().min(1),
   lastName: z.string().min(1),
   phone: z.string().min(1),
   others: z.string().optional(),
 });
 
-// --- ROBUST HELPERS ---
+// --- HELPERS ---
 
-// 1. Normalize String (Trim, Lowercase)
 function normalize(str: any) {
   return str ? String(str).trim().toLowerCase() : "";
 }
 
-// 2. Normalize Phone (Handles 0917, 917, +63917)
 function normalizePhone(str: any) {
   if (!str) return "";
-  let clean = String(str).replace(/\D/g, ''); // Remove non-digits
-  
-  // Standardize to "09..." format if possible
+  let clean = String(str).replace(/\D/g, ''); 
   if (clean.startsWith('63')) clean = '0' + clean.slice(2);
   if (clean.startsWith('9') && clean.length === 10) clean = '0' + clean;
-  
   return clean;
 }
 
-// 3. Normalize Date (Handle YYYY-MM-DD vs 1/20/2026)
 function normalizeDate(raw: any) {
   if (!raw) return "";
   const str = String(raw).trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str; 
-  if (str.includes('/')) {
-    const parts = str.split('/');
-    if (parts.length === 3) {
-      const [m, d, y] = parts;
-      return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
-    }
-  }
   const d = new Date(str);
   return !isNaN(d.getTime()) ? d.toISOString().split('T')[0] : str;
 }
 
-// 4. Normalize Time
 function getCleanTime(timeStr: any) {
   if (!timeStr) return "";
   return String(timeStr).split(' - ')[0].trim().toLowerCase(); 
-}
-
-// 5. SMART HEADER FINDER
-function findHeaderKey(headerValues: string[], target: string) {
-  const normalizedTarget = normalize(target);
-  return headerValues.find(h => normalize(h).includes(normalizedTarget)) || target;
 }
 
 // --- ACTION 1: CHECK AVAILABILITY ---
@@ -85,10 +64,9 @@ export async function getSlotAvailability(date: string, branch: string) {
     const targetDate = normalizeDate(date);
     const shortBranch = BRANCH_MAP[branch] || branch;
 
-    const headers = sheet.headerValues;
-    const branchKey = findHeaderKey(headers, "branch");
-    const dateKey = findHeaderKey(headers, "date");
-    const timeKey = findHeaderKey(headers, "time");
+    const branchKey = "BRANCH";
+    const dateKey = "DATE";
+    const timeKey = "TIME";
 
     rows.forEach(row => {
       const rowDate = normalizeDate(row.get(dateKey));
@@ -111,21 +89,19 @@ export async function getSlotAvailability(date: string, branch: string) {
 
 // --- ACTION 2: SUBMIT BOOKING ---
 export async function submitBooking(prevState: any, formData: FormData) {
-  console.log("--- SUBMITTING BOOKING (DEBUG MODE) ---");
+  console.log("--- SUBMITTING BOOKING ---");
   
   const servicesRaw = formData.getAll('services');
   const servicesString = servicesRaw.join(', ');
 
-  // FIX: Added '|| ""' to ensure we never pass null to Zod
   const rawData = {
-    type: formData.get('type') || "",
+    type: formData.get('type') || "New Appointment", 
     branch: formData.get('branch') || "",
     session: formData.get('session') || "",
     date: formData.get('date') || "",
     time: formData.get('time') || "",
     services: servicesRaw, 
-    // FIX HERE: If fbLink is empty string "", logic now defaults to "" instead of falling through to null
-    fbLink: formData.get('fbLink') || formData.get('fbName') || "", 
+    fbLink: formData.get('fbLink') || "", 
     firstName: formData.get('firstName') || "",
     lastName: formData.get('lastName') || "",
     phone: formData.get('phone') || "",
@@ -135,8 +111,6 @@ export async function submitBooking(prevState: any, formData: FormData) {
   const validated = formSchema.safeParse(rawData);
   
   if (!validated.success) {
-    // Return specific error for debugging
-    console.error("Validation Error:", validated.error);
     return { success: false, message: validated.error.issues[0].message };
   }
 
@@ -144,38 +118,29 @@ export async function submitBooking(prevState: any, formData: FormData) {
     const { sheet, rows } = await getSheetRows();
     const data = validated.data;
     
-    // 1. SMART HEADER MAPPING
-    const headers = sheet.headerValues;
-    console.log("Sheet Headers found:", headers);
-    
-    const phoneHeader = findHeaderKey(headers, "contact"); 
-    const nameHeader = findHeaderKey(headers, "full name");
-    const dateHeader = findHeaderKey(headers, "date");
-    const timeHeader = findHeaderKey(headers, "time");
-    const branchHeader = findHeaderKey(headers, "branch");
-    
-    console.log(`Using Headers -> Phone: "${phoneHeader}", Name: "${nameHeader}"`);
-
-    // 2. PREPARE TARGETS
+    // 1. PREPARE TARGETS
     const targetDate = normalizeDate(data.date);
     const displayTime = data.time.split(' - ')[0].trim();
     const targetTimeClean = getCleanTime(displayTime);
     const targetPhone = normalizePhone(data.phone);
     const shortBranch = BRANCH_MAP[data.branch] || data.branch;
-    const longBranch = data.branch; 
 
-    // 3. SCAN ROWS
+    // 2. SCAN ROWS
+    const colBranch = "BRANCH";
+    const colDate = "DATE";
+    const colTime = "TIME";
+    const colPhone = "Contact Number";
+
     let slotCount = 0;
     let targetRowIndex = -1;
     let isMovingSlots = true; 
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
-      
-      const rBranch = row.get(branchHeader);
-      const rDate = normalizeDate(row.get(dateHeader));
-      const rTime = getCleanTime(row.get(timeHeader));
-      const rPhone = normalizePhone(row.get(phoneHeader));
+      const rBranch = row.get(colBranch);
+      const rDate = normalizeDate(row.get(colDate));
+      const rTime = getCleanTime(row.get(colTime));
+      const rPhone = normalizePhone(row.get(colPhone));
 
       if (rBranch === shortBranch && rDate === targetDate && rTime === targetTimeClean) {
         slotCount++;
@@ -183,19 +148,16 @@ export async function submitBooking(prevState: any, formData: FormData) {
 
       if (rPhone === targetPhone) {
         if (data.type === 'Reschedule') {
-          console.log("-> Found Reschedule Match");
           targetRowIndex = i;
           isMovingSlots = true; 
         } 
-        else if ((rBranch === shortBranch || rBranch === longBranch) && rDate === targetDate && rTime === targetTimeClean) {
-          console.log("-> Found Duplicate Booking - Updating");
+        else if (rBranch === shortBranch && rDate === targetDate && rTime === targetTimeClean) {
           targetRowIndex = i;
           isMovingSlots = false; 
         }
       }
     }
 
-    // 4. CAPACITY CHECK
     if (isMovingSlots && slotCount >= MAX_CAPACITY_PER_SLOT) {
       return { 
         success: false, 
@@ -203,21 +165,23 @@ export async function submitBooking(prevState: any, formData: FormData) {
       };
     }
 
-    // 5. SAVE
+    // 3. MAP TO SHEET COLUMNS (A-N)
+    // FIX: Added || "" to optional fields so they are never undefined
     const newRowData = {
-      [branchHeader]: shortBranch,
-      'FACEBOOK NAME': data.fbLink || "", 
-      [nameHeader]: `${data.firstName} ${data.lastName}`,
-      [phoneHeader]: data.phone, 
-      [dateHeader]: targetDate, 
-      [timeHeader]: displayTime, 
-      'CLIENT #': "",
-      'SERVICES': servicesString,
-      'SESSION': data.session,
-      'STATUS': data.type === 'Reschedule' ? 'Reschedule' : 'Pending',
-      'ACK?': "NO ACK",
-      'M O P': "",
-      'REMARKS': data.others || "" 
+      'BRANCH': shortBranch,                    // A
+      'FACEBOOK NAME': data.fbLink || "",       // B (FIXED)
+      'FULL NAME': `${data.firstName} ${data.lastName}`, // C
+      'Contact Number': data.phone,             // D
+      'DATE': targetDate,                       // E
+      'TIME': displayTime,                      // F
+      'CLIENT #': "",                           // G
+      'SERVICES': servicesString,               // H
+      'SESSION': data.session,                  // I
+      'STATUS': 'Pending',                      // J
+      'ACK?': "NO ACK",                         // K
+      'MOP': "",                                // L
+      'REMARKS': data.others || "",             // M
+      'TYPE': data.type || ""                   // N (FIXED)
     };
 
     if (targetRowIndex !== -1) {
