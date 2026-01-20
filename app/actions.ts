@@ -71,10 +71,9 @@ function getCleanTime(timeStr: any) {
   return String(timeStr).split(' - ')[0].trim().toLowerCase(); 
 }
 
-// 5. SMART HEADER FINDER (The Fix for Mismatched Columns)
+// 5. SMART HEADER FINDER
 function findHeaderKey(headerValues: string[], target: string) {
   const normalizedTarget = normalize(target);
-  // Find the header that *contains* the target word (e.g. "Contact" matches "Contact Number ")
   return headerValues.find(h => normalize(h).includes(normalizedTarget)) || target;
 }
 
@@ -86,7 +85,6 @@ export async function getSlotAvailability(date: string, branch: string) {
     const targetDate = normalizeDate(date);
     const shortBranch = BRANCH_MAP[branch] || branch;
 
-    // Dynamically find headers
     const headers = sheet.headerValues;
     const branchKey = findHeaderKey(headers, "branch");
     const dateKey = findHeaderKey(headers, "date");
@@ -118,32 +116,39 @@ export async function submitBooking(prevState: any, formData: FormData) {
   const servicesRaw = formData.getAll('services');
   const servicesString = servicesRaw.join(', ');
 
+  // FIX: Added '|| ""' to ensure we never pass null to Zod
   const rawData = {
-    type: formData.get('type'),
-    branch: formData.get('branch'),
-    session: formData.get('session'),
-    date: formData.get('date'),
-    time: formData.get('time'),
+    type: formData.get('type') || "",
+    branch: formData.get('branch') || "",
+    session: formData.get('session') || "",
+    date: formData.get('date') || "",
+    time: formData.get('time') || "",
     services: servicesRaw, 
-    fbLink: formData.get('fbLink') || formData.get('fbName'),
-    firstName: formData.get('firstName'),
-    lastName: formData.get('lastName'),
-    phone: formData.get('phone'),
-    others: formData.get('others'),
+    // FIX HERE: If fbLink is empty string "", logic now defaults to "" instead of falling through to null
+    fbLink: formData.get('fbLink') || formData.get('fbName') || "", 
+    firstName: formData.get('firstName') || "",
+    lastName: formData.get('lastName') || "",
+    phone: formData.get('phone') || "",
+    others: formData.get('others') || "",
   };
 
   const validated = formSchema.safeParse(rawData);
-  if (!validated.success) return { success: false, message: validated.error.issues[0].message };
+  
+  if (!validated.success) {
+    // Return specific error for debugging
+    console.error("Validation Error:", validated.error);
+    return { success: false, message: validated.error.issues[0].message };
+  }
 
   try {
     const { sheet, rows } = await getSheetRows();
     const data = validated.data;
     
-    // 1. SMART HEADER MAPPING (Crucial Step)
+    // 1. SMART HEADER MAPPING
     const headers = sheet.headerValues;
-    console.log("Sheet Headers found:", headers); // CHECK THIS LOG IF IT FAILS
+    console.log("Sheet Headers found:", headers);
     
-    const phoneHeader = findHeaderKey(headers, "contact"); // Looks for "Contact Number" or "Contact"
+    const phoneHeader = findHeaderKey(headers, "contact"); 
     const nameHeader = findHeaderKey(headers, "full name");
     const dateHeader = findHeaderKey(headers, "date");
     const timeHeader = findHeaderKey(headers, "time");
@@ -172,15 +177,10 @@ export async function submitBooking(prevState: any, formData: FormData) {
       const rTime = getCleanTime(row.get(timeHeader));
       const rPhone = normalizePhone(row.get(phoneHeader));
 
-      // DEBUG: Print first row's phone to verify we are reading correctly
-      if (i === 0) console.log(`Row 1 Phone read as: ${rPhone} (Target: ${targetPhone})`);
-
-      // Count Capacity
       if (rBranch === shortBranch && rDate === targetDate && rTime === targetTimeClean) {
         slotCount++;
       }
 
-      // Check Match (Phone Only is safest)
       if (rPhone === targetPhone) {
         if (data.type === 'Reschedule') {
           console.log("-> Found Reschedule Match");
@@ -206,7 +206,7 @@ export async function submitBooking(prevState: any, formData: FormData) {
     // 5. SAVE
     const newRowData = {
       [branchHeader]: shortBranch,
-      'FACEBOOK NAME': data.fbLink || "", // <--- FIXED: Defaults to "" if undefined
+      'FACEBOOK NAME': data.fbLink || "", 
       [nameHeader]: `${data.firstName} ${data.lastName}`,
       [phoneHeader]: data.phone, 
       [dateHeader]: targetDate, 
@@ -217,7 +217,7 @@ export async function submitBooking(prevState: any, formData: FormData) {
       'STATUS': data.type === 'Reschedule' ? 'Reschedule' : 'Pending',
       'ACK?': "NO ACK",
       'M O P': "",
-      'REMARKS': data.others || "" // This was already correct, but good to keep double checking
+      'REMARKS': data.others || "" 
     };
 
     if (targetRowIndex !== -1) {
