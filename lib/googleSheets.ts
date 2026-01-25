@@ -20,6 +20,9 @@ export const getSheetRows = async () => {
   let sheet = doc.sheetsByTitle["Raw_Intake"];
   if (!sheet) sheet = doc.sheetsByIndex[0];
   
+  // FORCE HEADERS TO LOAD
+  await sheet.loadHeaderRow();
+
   const rows = await sheet.getRows();
   return { sheet, rows };
 };

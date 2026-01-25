@@ -74,50 +74,58 @@ function getCleanTime(timeStr: any) {
   return s.replace(/\s/g, ''); 
 }
 
+// HEADER FINDER: Matches "mop" to "M O P", "date" to "DATE", etc.
+function findColumnKey(headers: string[], keyword: string) {
+  // 1. Try exact match
+  if (headers.includes(keyword)) return keyword;
+  
+  // 2. Try normalized match (remove spaces, lowercase)
+  const normKeyword = keyword.toLowerCase().replace(/[^a-z0-9]/g, '');
+  return headers.find(h => h.toLowerCase().replace(/[^a-z0-9]/g, '') === normKeyword);
+}
+
 // --- ACTION 1: CHECK AVAILABILITY ---
 export async function getSlotAvailability(date: string, branch: string) {
   try {
     const { sheet, rows } = await getSheetRows();
 
-    // CRITICAL SAFETY CHECK
-    if (!sheet) {
-      console.error("CRITICAL: 'Raw_Intake' sheet not found!");
-      return { success: false, counts: {}, limit: 4 };
-    }
+    if (!sheet) return { success: false, counts: {}, limit: 4 };
+
+    // Ensure headers loaded
+    if (!sheet.headerValues) await sheet.loadHeaderRow();
+    const headers = sheet.headerValues;
+
+    // Resolve Keys Dynamically
+    const KEY_BRANCH = findColumnKey(headers, "BRANCH") || "BRANCH";
+    const KEY_DATE = findColumnKey(headers, "DATE") || "DATE";
+    const KEY_TIME = findColumnKey(headers, "TIME") || "TIME";
 
     const counts: Record<string, number> = {};
-    
     const targetDate = normalizeDate(date);
     const targetFullBranch = normalizeStr(branch);
     const targetShortBranch = normalizeStr(BRANCH_MAP[branch] || branch);
     const limit = BRANCH_LIMITS[BRANCH_MAP[branch] || branch] || 4;
 
-    if (!rows || rows.length === 0) return { success: true, counts, limit };
+    if (rows) {
+      rows.forEach((row) => {
+        const rDateRaw = row.get(KEY_DATE);
+        const rBranchRaw = row.get(KEY_BRANCH);
+        const rTimeRaw = row.get(KEY_TIME);
 
-    // HARDCODED KEYS (Matches your CSV exactly)
-    const KEY_BRANCH = "BRANCH";
-    const KEY_DATE = "DATE";
-    const KEY_TIME = "TIME";
+        if (!rTimeRaw) return;
 
-    rows.forEach((row) => {
-      // Direct key access - no guessing
-      const rDateRaw = row.get(KEY_DATE);
-      const rBranchRaw = row.get(KEY_BRANCH);
-      const rTimeRaw = row.get(KEY_TIME);
+        const rDate = normalizeDate(rDateRaw);
+        const rBranch = normalizeStr(rBranchRaw);
+        const rTime = getCleanTime(rTimeRaw);
 
-      if (!rTimeRaw) return;
+        const isBranchMatch = (rBranch === targetShortBranch) || (rBranch === targetFullBranch);
+        const isDateMatch = (rDate === targetDate);
 
-      const rDate = normalizeDate(rDateRaw);
-      const rBranch = normalizeStr(rBranchRaw);
-      const rTime = getCleanTime(rTimeRaw);
-
-      const isBranchMatch = (rBranch === targetShortBranch) || (rBranch === targetFullBranch);
-      const isDateMatch = (rDate === targetDate);
-
-      if (isBranchMatch && isDateMatch) {
-         counts[rTime] = (counts[rTime] || 0) + 1;
-      }
-    });
+        if (isBranchMatch && isDateMatch) {
+           counts[rTime] = (counts[rTime] || 0) + 1;
+        }
+      });
+    }
 
     return { success: true, counts, limit };
   } catch (error) {
@@ -151,10 +159,14 @@ export async function submitBooking(prevState: any, formData: FormData) {
   try {
     const data = validated.data;
     const { sheet, rows } = await getSheetRows();
-
+    
     if (!sheet) throw new Error("Database Sheet Missing");
+    
+    // 1. FORCE LOAD HEADERS
+    if (!sheet.headerValues) await sheet.loadHeaderRow();
+    const headers = sheet.headerValues;
 
-    // PREPARE DATA
+    // 2. PREPARE DATA
     const targetDate = normalizeDate(data.date);
     const shortBranch = BRANCH_MAP[data.branch] || data.branch;
     const targetShortBranch = normalizeStr(shortBranch);
@@ -162,18 +174,40 @@ export async function submitBooking(prevState: any, formData: FormData) {
     const targetTimeClean = getCleanTime(data.time);
     const targetPhone = normalizePhone(data.phone);
     const limit = BRANCH_LIMITS[shortBranch] || 4;
+    const displayTime = data.time.split(' - ')[0].trim();
 
-    // HARDCODED KEYS
-    const KEY_BRANCH = "BRANCH";
-    const KEY_DATE = "DATE";
-    const KEY_TIME = "TIME";
-    const KEY_PHONE = "Contact Number";
+    // 3. DEFINE DESIRED DATA (We will only write what matches)
+    // The keys here correspond to your CSV headers roughly
+    const desiredData: Record<string, string> = {
+      "BRANCH": shortBranch,
+      "FACEBOOK NAME": data.fbLink || "",
+      "FULL NAME": `${data.firstName} ${data.lastName}`,
+      "Contact Number": data.phone,
+      "DATE": targetDate,
+      "TIME": displayTime,
+      "CLIENT #": "",
+      "SERVICES": servicesString,
+      "SESSION": data.session,
+      "STATUS": "Pending",
+      "ACK?": "NO ACK",
+      "M O P": "",        // We try "M O P"
+      "REMARKS": data.others || "",
+      "TYPE": data.type || ""
+    };
+
+    // 4. CHECK AVAILABILITY LOOP
+    // Resolve Keys for Reading
+    const KEY_BRANCH = findColumnKey(headers, "BRANCH");
+    const KEY_DATE = findColumnKey(headers, "DATE");
+    const KEY_TIME = findColumnKey(headers, "TIME");
+    const KEY_PHONE = findColumnKey(headers, "Contact Number");
 
     let slotCount = 0;
     let targetRowIndex = -1;
     let isMovingSlots = true; 
 
-    if (rows) {
+    // Only scan if we found the critical keys
+    if (rows && KEY_BRANCH && KEY_DATE && KEY_TIME && KEY_PHONE) {
         for (let i = 0; i < rows.length; i++) {
           const row = rows[i];
           const rDate = normalizeDate(row.get(KEY_DATE));
@@ -203,40 +237,35 @@ export async function submitBooking(prevState: any, formData: FormData) {
     if (isMovingSlots && slotCount >= limit) {
       return { 
         success: false, 
-        message: `Sorry! The ${data.time.split(' - ')[0]} slot is full (Max ${limit}).` 
+        message: `Sorry! The ${displayTime} slot is full (Max ${limit}).` 
       };
     }
 
-    const displayTime = data.time.split(' - ')[0].trim();
-    const newRowData = {
-      [KEY_BRANCH]: shortBranch,                    
-      'FACEBOOK NAME': data.fbLink || "",       
-      'FULL NAME': `${data.firstName} ${data.lastName}`, 
-      [KEY_PHONE]: data.phone,             
-      [KEY_DATE]: targetDate,                       
-      [KEY_TIME]: displayTime,
-      'CLIENT #': "",                           
-      'SERVICES': servicesString,               
-      'SESSION': data.session,                  
-      'STATUS': 'Pending',                      
-      'ACK?': "NO ACK",                         
-      'MOP': "",                                
-      'REMARKS': data.others || "",             
-      'TYPE': data.type || ""                   
-    };
+    // 5. CONSTRUCT SAFE PAYLOAD (Only include keys that exist in headers)
+    const rowPayload: Record<string, any> = {};
+    
+    // For each desired field, check if its column exists in the sheet
+    Object.entries(desiredData).forEach(([key, value]) => {
+      const actualHeader = findColumnKey(headers, key);
+      if (actualHeader) {
+        rowPayload[actualHeader] = value; // Write only if column exists
+      }
+    });
 
+    // 6. WRITE
     if (targetRowIndex !== -1 && rows) {
       const row = rows[targetRowIndex];
-      row.assign(newRowData);
+      row.assign(rowPayload);
       await row.save();
       return { success: true, message: "Booking Updated Successfully!" };
     } else {
-      await sheet.addRow(newRowData);
+      await sheet.addRow(rowPayload);
       return { success: true, message: "Booking Confirmed! See you there." };
     }
 
   } catch (error) {
     console.error("Sheet Error:", error);
-    return { success: false, message: "System Busy. Please try again." };
+    const msg = error instanceof Error ? error.message : "System Busy";
+    return { success: false, message: `System Error: ${msg}` };
   }
 }
