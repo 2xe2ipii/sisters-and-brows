@@ -5,11 +5,17 @@ interface TimeSlotGridProps {
   slotCounts: Record<string, number>;
   loading: boolean;
   selectedDate: string;
-  maxCapacity: number; // Receive the limit
+  maxCapacity: number; // NEW: Added prop
 }
 
 export default function TimeSlotGrid({ slotCounts, loading, selectedDate, maxCapacity }: TimeSlotGridProps) {
-  // ... check if date selected ...
+  if (!selectedDate) {
+    return (
+      <div className="text-center p-6 text-slate-400 text-sm font-medium border-2 border-dashed border-slate-100 rounded-2xl">
+        Select a date above to view available time slots
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4 animate-in fade-in slide-in-from-top-4 duration-500">
@@ -22,12 +28,11 @@ export default function TimeSlotGrid({ slotCounts, loading, selectedDate, maxCap
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {TIME_FRAMES.map((slot) => {
-          // KEY FIX: Normalize the key to match Server Action (lowercase)
-          // "10:00 AM - 11:30 AM" -> "10:00 am"
-          const displayTime = slot.split(' - ')[0];
-          const timeKey = displayTime.trim().toLowerCase(); 
-          
+          // Normalize key: "10:00 AM - 11:30 AM" -> "10:00 am"
+          const timeKey = slot.split(' - ')[0].trim().toLowerCase();
           const count = slotCounts[timeKey] || 0;
+          
+          // Use dynamic maxCapacity (e.g. 4 or 6)
           const isFull = (maxCapacity - count) <= 0;
 
           return (
@@ -50,15 +55,13 @@ export default function TimeSlotGrid({ slotCounts, loading, selectedDate, maxCap
                 className="peer hidden"
               />
 
-              {/* Selected Background */}
+              {/* Selected State */}
               <div className="absolute inset-0 bg-[#0f172a] opacity-0 peer-checked:opacity-100 transition-all duration-300 z-0"></div>
 
-              {/* Card Content */}
+              {/* Card Content - STRICTLY NO "X LEFT" TEXT */}
               <div className={`p-4 relative z-10 transition-colors duration-300 flex items-center justify-between ${isFull ? 'text-slate-400' : 'text-slate-700 peer-checked:text-white'}`}>
                 <span className="font-bold text-sm">{slot}</span>
-                {/* Optional: Show spots left for debugging, remove for production */}
-                 {!isFull && <span className="text-xs opacity-50">{maxCapacity - count} left</span>}
-                 {isFull && <span className="text-xs font-bold text-rose-500">FULL</span>}
+                {isFull && <span className="text-xs font-bold text-rose-500">FULL</span>}
               </div>
             </label>
           );
