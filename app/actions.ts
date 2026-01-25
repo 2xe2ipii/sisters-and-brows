@@ -13,14 +13,8 @@ const BRANCH_MAP: Record<string, string> = {
   "Comembo, Taguig": "TG"
 };
 
-// NEW: Specific Capacity Limits
 const BRANCH_LIMITS: Record<string, number> = {
-  "PQ": 4,
-  "LP": 4,
-  "SP": 2,
-  "NV": 4,
-  "DM": 6,
-  "TG": 4
+  "PQ": 4, "LP": 4, "SP": 2, "NV": 4, "DM": 6, "TG": 4
 };
 
 const formSchema = z.object({
@@ -39,10 +33,9 @@ const formSchema = z.object({
 
 // --- HELPERS ---
 
-// ROBUST NORMALIZER: Removes spaces, lowercases everything
 function normalizeStr(str: any) {
   if (!str) return "";
-  return String(str).trim().toLowerCase();
+  return String(str).trim().toLowerCase(); 
 }
 
 function normalizePhone(str: any) {
@@ -58,13 +51,33 @@ function normalizeDate(raw: any) {
   const str = String(raw).trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str; 
   const d = new Date(str);
-  return !isNaN(d.getTime()) ? d.toISOString().split('T')[0] : str;
+  if (isNaN(d.getTime())) return str;
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function getCleanTime(timeStr: any) {
   if (!timeStr) return "";
-  // Returns "10:00 am" (lowercase, no extra junk)
-  return String(timeStr).split(' - ')[0].trim().toLowerCase(); 
+  let s = String(timeStr).toLowerCase().split(' - ')[0].trim();
+  const match = s.match(/(\d{1,2}:\d{2})/); 
+  if (match) {
+    const timePart = match[1]; 
+    const isPM = s.includes('pm');
+    return `${timePart}${isPM ? 'pm' : 'am'}`;
+  }
+  return s.replace(/\s/g, ''); 
+}
+
+// FIX: Use 'sheet' object directly, not the row
+function findHeader(sheet: any, keyword: string) {
+  // Access public headerValues array from the sheet
+  const headers = sheet.headerValues; 
+  if (!headers || !Array.isArray(headers)) return keyword; // Safety fallback
+  
+  const match = headers.find((h: string) => h.toLowerCase().trim() === keyword.toLowerCase());
+  return match || keyword; 
 }
 
 // --- ACTION 1: CHECK AVAILABILITY ---
@@ -72,34 +85,35 @@ export async function getSlotAvailability(date: string, branch: string) {
   try {
     const { sheet, rows } = await getSheetRows();
     const counts: Record<string, number> = {};
+    
     const targetDate = normalizeDate(date);
-    
-    // Get Branch Code (e.g., "PQ")
-    const shortBranch = BRANCH_MAP[branch] || branch;
-    const cleanTargetBranch = normalizeStr(shortBranch);
-    
-    // Get Limit for this branch (Default to 4)
-    const limit = BRANCH_LIMITS[shortBranch] || 4;
+    const targetFullBranch = normalizeStr(branch);
+    const targetShortBranch = normalizeStr(BRANCH_MAP[branch] || branch);
+    const limit = BRANCH_LIMITS[BRANCH_MAP[branch] || branch] || 4;
 
-    const colBranch = "BRANCH";
-    const colDate = "DATE";
-    const colTime = "TIME";
+    // FIND HEADERS USING SHEET
+    const colBranch = findHeader(sheet, "branch");
+    const colDate = findHeader(sheet, "date");
+    const colTime = findHeader(sheet, "time");
 
-    rows.forEach(row => {
-      const rowDate = normalizeDate(row.get(colDate));
-      const rowBranchRaw = row.get(colBranch);
-      const rowTimeRaw = row.get(colTime);
+    console.log(`Availability Check -> Headers: [${colBranch}, ${colDate}, ${colTime}]`);
 
-      if (!rowTimeRaw) return;
+    rows.forEach((row) => {
+      const rDateRaw = row.get(colDate);
+      const rBranchRaw = row.get(colBranch);
+      const rTimeRaw = row.get(colTime);
 
-      // FUZZY MATCHING: Check "pq" against "PQ" or "PQ "
-      const cleanRowBranch = normalizeStr(rowBranchRaw);
-      
-      // Clean time key for counting (e.g. "10:00 am")
-      const tKey = getCleanTime(rowTimeRaw); 
+      if (!rTimeRaw) return;
 
-      if (cleanRowBranch === cleanTargetBranch && rowDate === targetDate) {
-         counts[tKey] = (counts[tKey] || 0) + 1;
+      const rDate = normalizeDate(rDateRaw);
+      const rBranch = normalizeStr(rBranchRaw);
+      const rTime = getCleanTime(rTimeRaw);
+
+      const isBranchMatch = (rBranch === targetShortBranch) || (rBranch === targetFullBranch);
+      const isDateMatch = (rDate === targetDate);
+
+      if (isBranchMatch && isDateMatch) {
+         counts[rTime] = (counts[rTime] || 0) + 1;
       }
     });
 
@@ -112,9 +126,8 @@ export async function getSlotAvailability(date: string, branch: string) {
 
 // --- ACTION 2: SUBMIT BOOKING ---
 export async function submitBooking(prevState: any, formData: FormData) {
-  
   const servicesRaw = formData.getAll('services');
-  const servicesString = servicesRaw.join(', ');
+  const servicesString = servicesRaw.map(s => String(s)).join(', ');
 
   const rawData = {
     type: formData.get('type') || "New Appointment", 
@@ -134,26 +147,25 @@ export async function submitBooking(prevState: any, formData: FormData) {
   if (!validated.success) return { success: false, message: validated.error.issues[0].message };
 
   try {
-    const { sheet, rows } = await getSheetRows();
     const data = validated.data;
-    
-    // 1. PREPARE TARGETS (Normalize everything)
+    const { sheet, rows } = await getSheetRows();
+
+    // 1. IDENTIFY HEADERS
+    const colBranch = findHeader(sheet, "branch");
+    const colDate = findHeader(sheet, "date");
+    const colTime = findHeader(sheet, "time");
+    const colPhone = findHeader(sheet, "contact number");
+
+    // 2. PREPARE DATA
     const targetDate = normalizeDate(data.date);
-    const displayTime = data.time.split(' - ')[0].trim(); // "10:00 AM" (Preserve Case for Saving)
-    const targetTimeClean = getCleanTime(displayTime);    // "10:00 am" (LowerCase for Matching)
-    const targetPhone = normalizePhone(data.phone);
-    
+    const targetFullBranch = normalizeStr(data.branch);
     const shortBranch = BRANCH_MAP[data.branch] || data.branch;
-    const cleanTargetBranch = normalizeStr(shortBranch);
-    
-    const limit = BRANCH_LIMITS[shortBranch] || 4; // Dynamic Limit
+    const targetShortBranch = normalizeStr(shortBranch);
+    const targetTimeClean = getCleanTime(data.time);
+    const targetPhone = normalizePhone(data.phone);
+    const limit = BRANCH_LIMITS[shortBranch] || 4;
 
-    // 2. SCAN ROWS
-    const colBranch = "BRANCH";
-    const colDate = "DATE";
-    const colTime = "TIME";
-    const colPhone = "Contact Number";
-
+    // 3. SCAN AND COUNT
     let slotCount = 0;
     let targetRowIndex = -1;
     let isMovingSlots = true; 
@@ -161,20 +173,19 @@ export async function submitBooking(prevState: any, formData: FormData) {
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       const rDate = normalizeDate(row.get(colDate));
+      const rBranch = normalizeStr(row.get(colBranch));
       const rTime = getCleanTime(row.get(colTime));
       const rPhone = normalizePhone(row.get(colPhone));
-      const rBranch = normalizeStr(row.get(colBranch)); // Normalize Sheet Data
 
-      // MATCH LOGIC
-      const isSameBranch = rBranch === cleanTargetBranch;
-      const isSameDate = rDate === targetDate;
-      const isSameTime = rTime === targetTimeClean;
+      const isSameBranch = (rBranch === targetShortBranch) || (rBranch === targetFullBranch);
+      const isSameDate = (rDate === targetDate);
+      const isSameTime = (rTime === targetTimeClean);
 
       if (isSameBranch && isSameDate && isSameTime) {
         slotCount++;
       }
 
-      // IDENTITY CHECK (For Rescheduling)
+      // 4. IDEMPOTENCY CHECK
       if (rPhone === targetPhone) {
         if (data.type === 'Reschedule') {
           targetRowIndex = i;
@@ -187,22 +198,23 @@ export async function submitBooking(prevState: any, formData: FormData) {
       }
     }
 
-    // 3. CHECK CAPACITY
+    // 5. BLOCKER
     if (isMovingSlots && slotCount >= limit) {
       return { 
         success: false, 
-        message: `Sorry! The ${displayTime} slot at ${shortBranch} is full (Max ${limit}).` 
+        message: `Sorry! The ${data.time.split(' - ')[0]} slot is full (Max ${limit}).` 
       };
     }
 
-    // 4. MAP TO SHEET COLUMNS
+    // 6. WRITE TO SHEET
+    const displayTime = data.time.split(' - ')[0].trim();
     const newRowData = {
-      'BRANCH': shortBranch,                    
+      [colBranch]: shortBranch,                    
       'FACEBOOK NAME': data.fbLink || "",       
       'FULL NAME': `${data.firstName} ${data.lastName}`, 
-      'Contact Number': data.phone,             
-      'DATE': targetDate,                       
-      'TIME': displayTime,  // Save pretty version "10:00 AM"                    
+      [colPhone]: data.phone,             
+      [colDate]: targetDate,                       
+      [colTime]: displayTime,
       'CLIENT #': "",                           
       'SERVICES': servicesString,               
       'SESSION': data.session,                  

@@ -5,7 +5,6 @@ import { submitBooking, getSlotAvailability } from '@/app/actions';
 import { Sparkles, ArrowRight, ArrowLeft } from 'lucide-react';
 import { BRANCHES } from './booking/constants';
 
-// Subcomponents
 import StartHere from './booking/StartHere';
 import LocationDate from './booking/LocationDate';
 import TimeSlotGrid from './booking/TimeSlotGrid';
@@ -23,18 +22,16 @@ export default function BookingForm() {
   const [state, formAction, isPending] = useActionState(submitBooking, initialState);
   const formRef = useRef<HTMLFormElement>(null);
   
-  // Logic State
   const [step, setStep] = useState<'FORM' | 'REVIEW'>('FORM');
   const [reviewData, setReviewData] = useState<any>(null);
   
-  // Form Field State
   const [bookingType, setBookingType] = useState("New Appointment");
   const [selectedBranch, setSelectedBranch] = useState(BRANCHES[0]);
   const [selectedDate, setSelectedDate] = useState("");
   const [slotCounts, setSlotCounts] = useState<Record<string, number>>({});
   
-  // NEW: State to hold the dynamic capacity
-  const [maxCapacity, setMaxCapacity] = useState(4);
+  // NEW: State for Dynamic Capacity
+  const [maxCapacity, setMaxCapacity] = useState(4); 
   const [loadingSlots, setLoadingSlots] = useState(false);
 
   const today = new Date().toISOString().split('T')[0];
@@ -47,7 +44,7 @@ export default function BookingForm() {
         const result = await getSlotAvailability(selectedDate, selectedBranch);
         if (result.success) {
           setSlotCounts(result.counts);
-          // NEW: Update capacity based on branch
+          // Update Max Capacity based on server response (e.g. PQ=4, SP=2)
           if (result.limit) setMaxCapacity(result.limit);
         }
       } catch (e) {
@@ -91,7 +88,6 @@ export default function BookingForm() {
     <div className="min-h-screen w-full bg-[#f8fafc] flex flex-col items-center py-12 px-4">
       <div className="w-full max-w-xl space-y-8">
         
-        {/* HEADER */}
         {step === 'FORM' ? (
           <div className="pl-2 animate-in fade-in slide-in-from-top-4 duration-500">
               <div className="flex items-center gap-2 text-xs font-bold tracking-widest text-slate-500 uppercase mb-2">
@@ -104,10 +100,7 @@ export default function BookingForm() {
           </div>
         ) : (
            <div className="pl-2 animate-in fade-in slide-in-from-right-8 duration-500">
-              <button 
-                onClick={() => setStep('FORM')} 
-                className="flex items-center gap-2 text-sm font-bold text-slate-400 hover:text-slate-700 transition-colors mb-4"
-              >
+              <button onClick={() => setStep('FORM')} className="flex items-center gap-2 text-sm font-bold text-slate-400 hover:text-slate-700 transition-colors mb-4">
                  <ArrowLeft className="w-4 h-4" /> Back to Edit
               </button>
               <h1 className="text-3xl font-extrabold text-slate-900 mb-2 tracking-tight">Review Details</h1>
@@ -115,12 +108,7 @@ export default function BookingForm() {
            </div>
         )}
 
-        <form 
-          ref={formRef} 
-          action={formAction} 
-          className="space-y-6"
-          noValidate={step === 'REVIEW'} 
-        >
+        <form ref={formRef} action={formAction} className="space-y-6" noValidate={step === 'REVIEW'}>
           <div className={step === 'FORM' ? 'space-y-6 block animate-in fade-in duration-300' : 'hidden'}>
             
             <StartHere bookingType={bookingType} setBookingType={setBookingType} />
@@ -133,16 +121,15 @@ export default function BookingForm() {
               minDate={today}
             />
 
-            {/* NEW: Pass maxCapacity to the grid */}
+            {/* PASS MAX CAPACITY HERE */}
             <TimeSlotGrid 
               slotCounts={slotCounts} 
               loading={loadingSlots} 
               selectedDate={selectedDate}
-              maxCapacity={maxCapacity}
+              maxCapacity={maxCapacity} 
             />
 
             <ServiceList />
-
             <GuestForm />
 
             <label className="flex gap-3 cursor-pointer group">
@@ -152,11 +139,7 @@ export default function BookingForm() {
                 </span>
             </label>
 
-            <button 
-              type="button" 
-              onClick={handleProceed}
-              className="w-full bg-[#0f172a] text-white font-bold text-lg py-4 rounded-2xl shadow-xl hover:bg-slate-900 hover:scale-[1.01] transition-all flex items-center justify-center gap-2"
-            >
+            <button type="button" onClick={handleProceed} className="w-full bg-[#0f172a] text-white font-bold text-lg py-4 rounded-2xl shadow-xl hover:bg-slate-900 hover:scale-[1.01] transition-all flex items-center justify-center gap-2">
                Proceed to Review <ArrowRight className="w-5 h-5" />
             </button>
           </div>
@@ -170,14 +153,12 @@ export default function BookingForm() {
                message={state.message}
              />
           )}
-
         </form>
         
         <div className="text-center pb-8 opacity-40">
            <p className="text-sm font-bold text-slate-900">Sisters & Brows</p>
            <p className="text-[10px] text-slate-500 mt-0.5 lowercase">developed by 2xe2ipi</p>
         </div>
-
       </div>
     </div>
   );

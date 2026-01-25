@@ -13,10 +13,10 @@ export const getDoc = async () => {
   return doc;
 };
 
-// NEW: Helper to get all rows so we can search them
 export const getSheetRows = async () => {
   const doc = await getDoc();
-  // Try to find "Raw_Intake", fallback to first sheet if missing
+  
+  // Priority: 1. "Raw_Intake" 2. First Sheet
   let sheet = doc.sheetsByTitle["Raw_Intake"];
   if (!sheet) sheet = doc.sheetsByIndex[0];
   
