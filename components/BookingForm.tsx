@@ -20,6 +20,7 @@ const initialState = {
 };
 
 export default function BookingForm() {
+  
   const [state, formAction, isPending] = useActionState(submitBooking, initialState);
   const formRef = useRef<HTMLFormElement>(null);
   
@@ -47,8 +48,8 @@ export default function BookingForm() {
         const result = await getSlotAvailability(selectedDate, selectedBranch);
         if (result.success) {
           setSlotCounts(result.counts);
-          // NEW: Update capacity based on branch
-          if (result.maxCapacity) setMaxCapacity(result.maxCapacity);
+          // NEW: Capture the limit from server (e.g., 6 for DM, 2 for SP)
+          if (result.limit) setMaxCapacity(result.limit);
         }
       } catch (e) {
         console.error(e);
@@ -118,7 +119,7 @@ export default function BookingForm() {
               slotCounts={slotCounts} 
               loading={loadingSlots} 
               selectedDate={selectedDate}
-              maxCapacity={maxCapacity}
+              maxCapacity={maxCapacity} 
             />
 
             <ServiceList />
