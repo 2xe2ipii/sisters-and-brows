@@ -4,8 +4,6 @@ import { z } from 'zod';
 import { getSheetRows } from '@/lib/googleSheets';
 
 // --- CONFIGURATION ---
-// REMOVED: const MAX_CAPACITY_PER_SLOT = 4;
-
 const BRANCH_MAP: Record<string, string> = {
   "Parañaque, Metro Manila": "PQ",
   "Lipa, Batangas": "LP",
@@ -15,13 +13,13 @@ const BRANCH_MAP: Record<string, string> = {
   "Comembo, Taguig": "TG"
 };
 
-// NEW: Define capacity per branch short code
-const BRANCH_CAPACITY: Record<string, number> = {
+// NEW: Specific Capacity Limits
+const BRANCH_LIMITS: Record<string, number> = {
+  "PQ": 4,
   "LP": 4,
   "SP": 2,
   "NV": 4,
   "DM": 6,
-  "PQ": 4,
   "TG": 4
 };
 
@@ -40,8 +38,11 @@ const formSchema = z.object({
 });
 
 // --- HELPERS ---
-function normalize(str: any) {
-  return str ? String(str).trim().toLowerCase() : "";
+
+// ROBUST NORMALIZER: Removes spaces, lowercases everything
+function normalizeStr(str: any) {
+  if (!str) return "";
+  return String(str).trim().toLowerCase();
 }
 
 function normalizePhone(str: any) {
@@ -62,6 +63,7 @@ function normalizeDate(raw: any) {
 
 function getCleanTime(timeStr: any) {
   if (!timeStr) return "";
+  // Returns "10:00 am" (lowercase, no extra junk)
   return String(timeStr).split(' - ')[0].trim().toLowerCase(); 
 }
 
@@ -71,38 +73,45 @@ export async function getSlotAvailability(date: string, branch: string) {
     const { sheet, rows } = await getSheetRows();
     const counts: Record<string, number> = {};
     const targetDate = normalizeDate(date);
-    const shortBranch = BRANCH_MAP[branch] || branch;
     
-    // NEW: Get the specific capacity for this branch (default to 4 if not found)
-    const maxCapacity = BRANCH_CAPACITY[shortBranch] || 4;
+    // Get Branch Code (e.g., "PQ")
+    const shortBranch = BRANCH_MAP[branch] || branch;
+    const cleanTargetBranch = normalizeStr(shortBranch);
+    
+    // Get Limit for this branch (Default to 4)
+    const limit = BRANCH_LIMITS[shortBranch] || 4;
 
-    const branchKey = "BRANCH";
-    const dateKey = "DATE";
-    const timeKey = "TIME";
+    const colBranch = "BRANCH";
+    const colDate = "DATE";
+    const colTime = "TIME";
 
     rows.forEach(row => {
-      const rowDate = normalizeDate(row.get(dateKey));
-      const rowBranch = row.get(branchKey);
-      const rowTime = row.get(timeKey);
+      const rowDate = normalizeDate(row.get(colDate));
+      const rowBranchRaw = row.get(colBranch);
+      const rowTimeRaw = row.get(colTime);
 
-      if (!rowTime) return;
-      const tKey = rowTime.split(' - ')[0].trim(); 
-      if (rowBranch === shortBranch && rowDate === targetDate) {
+      if (!rowTimeRaw) return;
+
+      // FUZZY MATCHING: Check "pq" against "PQ" or "PQ "
+      const cleanRowBranch = normalizeStr(rowBranchRaw);
+      
+      // Clean time key for counting (e.g. "10:00 am")
+      const tKey = getCleanTime(rowTimeRaw); 
+
+      if (cleanRowBranch === cleanTargetBranch && rowDate === targetDate) {
          counts[tKey] = (counts[tKey] || 0) + 1;
       }
     });
 
-    // NEW: Return maxCapacity so the frontend knows when to disable buttons
-    return { success: true, counts, maxCapacity };
+    return { success: true, counts, limit };
   } catch (error) {
     console.error("Availability Error:", error);
-    return { success: false, counts: {}, maxCapacity: 4 };
+    return { success: false, counts: {}, limit: 4 };
   }
 }
 
 // --- ACTION 2: SUBMIT BOOKING ---
 export async function submitBooking(prevState: any, formData: FormData) {
-  console.log("--- SUBMITTING BOOKING ---");
   
   const servicesRaw = formData.getAll('services');
   const servicesString = servicesRaw.join(', ');
@@ -122,24 +131,22 @@ export async function submitBooking(prevState: any, formData: FormData) {
   };
 
   const validated = formSchema.safeParse(rawData);
-  
-  if (!validated.success) {
-    return { success: false, message: validated.error.issues[0].message };
-  }
+  if (!validated.success) return { success: false, message: validated.error.issues[0].message };
 
   try {
     const { sheet, rows } = await getSheetRows();
     const data = validated.data;
     
-    // 1. PREPARE TARGETS
+    // 1. PREPARE TARGETS (Normalize everything)
     const targetDate = normalizeDate(data.date);
-    const displayTime = data.time.split(' - ')[0].trim();
-    const targetTimeClean = getCleanTime(displayTime);
+    const displayTime = data.time.split(' - ')[0].trim(); // "10:00 AM" (Preserve Case for Saving)
+    const targetTimeClean = getCleanTime(displayTime);    // "10:00 am" (LowerCase for Matching)
     const targetPhone = normalizePhone(data.phone);
-    const shortBranch = BRANCH_MAP[data.branch] || data.branch;
     
-    // NEW: Determine max capacity dynamically
-    const maxCapacity = BRANCH_CAPACITY[shortBranch] || 4;
+    const shortBranch = BRANCH_MAP[data.branch] || data.branch;
+    const cleanTargetBranch = normalizeStr(shortBranch);
+    
+    const limit = BRANCH_LIMITS[shortBranch] || 4; // Dynamic Limit
 
     // 2. SCAN ROWS
     const colBranch = "BRANCH";
@@ -153,43 +160,49 @@ export async function submitBooking(prevState: any, formData: FormData) {
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
-      const rBranch = row.get(colBranch);
       const rDate = normalizeDate(row.get(colDate));
       const rTime = getCleanTime(row.get(colTime));
       const rPhone = normalizePhone(row.get(colPhone));
+      const rBranch = normalizeStr(row.get(colBranch)); // Normalize Sheet Data
 
-      if (rBranch === shortBranch && rDate === targetDate && rTime === targetTimeClean) {
+      // MATCH LOGIC
+      const isSameBranch = rBranch === cleanTargetBranch;
+      const isSameDate = rDate === targetDate;
+      const isSameTime = rTime === targetTimeClean;
+
+      if (isSameBranch && isSameDate && isSameTime) {
         slotCount++;
       }
 
+      // IDENTITY CHECK (For Rescheduling)
       if (rPhone === targetPhone) {
         if (data.type === 'Reschedule') {
           targetRowIndex = i;
           isMovingSlots = true; 
         } 
-        else if (rBranch === shortBranch && rDate === targetDate && rTime === targetTimeClean) {
+        else if (isSameBranch && isSameDate && isSameTime) {
           targetRowIndex = i;
           isMovingSlots = false; 
         }
       }
     }
 
-    // NEW: Use dynamic maxCapacity instead of constant
-    if (isMovingSlots && slotCount >= maxCapacity) {
+    // 3. CHECK CAPACITY
+    if (isMovingSlots && slotCount >= limit) {
       return { 
         success: false, 
-        message: `Sorry! The ${displayTime} slot is fully booked (Max ${maxCapacity}).` 
+        message: `Sorry! The ${displayTime} slot at ${shortBranch} is full (Max ${limit}).` 
       };
     }
 
-    // 3. MAP TO SHEET COLUMNS (A-N)
+    // 4. MAP TO SHEET COLUMNS
     const newRowData = {
       'BRANCH': shortBranch,                    
       'FACEBOOK NAME': data.fbLink || "",       
       'FULL NAME': `${data.firstName} ${data.lastName}`, 
       'Contact Number': data.phone,             
       'DATE': targetDate,                       
-      'TIME': displayTime,                      
+      'TIME': displayTime,  // Save pretty version "10:00 AM"                    
       'CLIENT #': "",                           
       'SERVICES': servicesString,               
       'SESSION': data.session,                  
