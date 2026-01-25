@@ -46,12 +46,21 @@ function normalizePhone(str: any) {
   return clean;
 }
 
+// CRITICAL FIX: Handles "January 25" matching "2026-01-25"
 function normalizeDate(raw: any) {
   if (!raw) return "";
-  const str = String(raw).trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str; 
+  let str = String(raw).trim();
+  
+  // If format is "January 25", append current year to make it parseable
+  // (Assuming current year 2026 based on context)
+  if (/^[A-Za-z]+\s\d{1,2}$/.test(str)) {
+     str += ` ${new Date().getFullYear()}`; 
+  }
+
   const d = new Date(str);
-  if (isNaN(d.getTime())) return str;
+  if (isNaN(d.getTime())) return str; // Fallback
+  
+  // Return Standard YYYY-MM-DD
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
@@ -70,14 +79,14 @@ function getCleanTime(timeStr: any) {
   return s.replace(/\s/g, ''); 
 }
 
-// FIX: Use 'sheet' object directly, not the row
-function findHeader(sheet: any, keyword: string) {
-  // Access public headerValues array from the sheet
+// FIX: Safely find the header KEY from the loaded sheet values
+function getHeaderKey(sheet: any, keyword: string) {
+  // sheet.headerValues is the array of strings ["BRANCH", "DATE", ...]
   const headers = sheet.headerValues; 
-  if (!headers || !Array.isArray(headers)) return keyword; // Safety fallback
-  
+  if (!headers || !Array.isArray(headers)) return keyword.toUpperCase(); // Fallback to guess
+
   const match = headers.find((h: string) => h.toLowerCase().trim() === keyword.toLowerCase());
-  return match || keyword; 
+  return match || keyword.toUpperCase(); // Return the EXACT string found in sheet (e.g. "DATE")
 }
 
 // --- ACTION 1: CHECK AVAILABILITY ---
@@ -86,18 +95,22 @@ export async function getSlotAvailability(date: string, branch: string) {
     const { sheet, rows } = await getSheetRows();
     const counts: Record<string, number> = {};
     
-    const targetDate = normalizeDate(date);
+    // 1. Prepare Targets
+    const targetDate = normalizeDate(date); // "2026-01-25"
     const targetFullBranch = normalizeStr(branch);
     const targetShortBranch = normalizeStr(BRANCH_MAP[branch] || branch);
     const limit = BRANCH_LIMITS[BRANCH_MAP[branch] || branch] || 4;
 
-    // FIND HEADERS USING SHEET
-    const colBranch = findHeader(sheet, "branch");
-    const colDate = findHeader(sheet, "date");
-    const colTime = findHeader(sheet, "time");
+    if (rows.length === 0) return { success: true, counts, limit };
 
-    console.log(`Availability Check -> Headers: [${colBranch}, ${colDate}, ${colTime}]`);
+    // 2. Dynamic Header Mapping
+    const colBranch = getHeaderKey(sheet, "branch");
+    const colDate = getHeaderKey(sheet, "date");
+    const colTime = getHeaderKey(sheet, "time");
 
+    console.log(`Checking Raw_Intake: Date=${targetDate} | Branch=${targetShortBranch} | Limit=${limit}`);
+
+    // 3. Scan Rows
     rows.forEach((row) => {
       const rDateRaw = row.get(colDate);
       const rBranchRaw = row.get(colBranch);
@@ -105,6 +118,7 @@ export async function getSlotAvailability(date: string, branch: string) {
 
       if (!rTimeRaw) return;
 
+      // Normalize Sheet Data ("January 25" -> "2026-01-25")
       const rDate = normalizeDate(rDateRaw);
       const rBranch = normalizeStr(rBranchRaw);
       const rTime = getCleanTime(rTimeRaw);
@@ -117,6 +131,7 @@ export async function getSlotAvailability(date: string, branch: string) {
       }
     });
 
+    console.log("Counts found:", counts);
     return { success: true, counts, limit };
   } catch (error) {
     console.error("Availability Error:", error);
@@ -150,17 +165,17 @@ export async function submitBooking(prevState: any, formData: FormData) {
     const data = validated.data;
     const { sheet, rows } = await getSheetRows();
 
-    // 1. IDENTIFY HEADERS
-    const colBranch = findHeader(sheet, "branch");
-    const colDate = findHeader(sheet, "date");
-    const colTime = findHeader(sheet, "time");
-    const colPhone = findHeader(sheet, "contact number");
+    // 1. MAP HEADERS
+    const colBranch = getHeaderKey(sheet, "branch");
+    const colDate = getHeaderKey(sheet, "date");
+    const colTime = getHeaderKey(sheet, "time");
+    const colPhone = getHeaderKey(sheet, "contact number");
 
-    // 2. PREPARE DATA
+    // 2. PREPARE TARGETS
     const targetDate = normalizeDate(data.date);
-    const targetFullBranch = normalizeStr(data.branch);
     const shortBranch = BRANCH_MAP[data.branch] || data.branch;
     const targetShortBranch = normalizeStr(shortBranch);
+    const targetFullBranch = normalizeStr(data.branch);
     const targetTimeClean = getCleanTime(data.time);
     const targetPhone = normalizePhone(data.phone);
     const limit = BRANCH_LIMITS[shortBranch] || 4;
@@ -185,20 +200,21 @@ export async function submitBooking(prevState: any, formData: FormData) {
         slotCount++;
       }
 
-      // 4. IDEMPOTENCY CHECK
+      // 4. IDEMPOTENCY (Update Logic)
       if (rPhone === targetPhone) {
+        // If rescheduling or updating existing slot
         if (data.type === 'Reschedule') {
           targetRowIndex = i;
           isMovingSlots = true; 
         } 
         else if (isSameBranch && isSameDate && isSameTime) {
           targetRowIndex = i;
-          isMovingSlots = false; 
+          isMovingSlots = false; // Just updating details
         }
       }
     }
 
-    // 5. BLOCKER
+    // 5. BLOCKER: If New Booking AND Full -> STOP
     if (isMovingSlots && slotCount >= limit) {
       return { 
         success: false, 
@@ -213,7 +229,7 @@ export async function submitBooking(prevState: any, formData: FormData) {
       'FACEBOOK NAME': data.fbLink || "",       
       'FULL NAME': `${data.firstName} ${data.lastName}`, 
       [colPhone]: data.phone,             
-      [colDate]: targetDate,                       
+      [colDate]: targetDate,   // Saves as YYYY-MM-DD (Standard)                    
       [colTime]: displayTime,
       'CLIENT #': "",                           
       'SERVICES': servicesString,               
