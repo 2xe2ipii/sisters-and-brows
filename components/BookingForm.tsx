@@ -120,6 +120,7 @@ export default function BookingForm() {
               setSelectedDate={setSelectedDate}
               minDate={today}
             />
+            <input type="hidden" name="date" value={selectedDate} />
 
             {/* PASS MAX CAPACITY HERE */}
             <TimeSlotGrid 
