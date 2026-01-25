@@ -1,4 +1,4 @@
-import { CheckCircle2, MapPin, Calendar, Clock, Sparkles } from 'lucide-react';
+import { CheckCircle2, MapPin, Calendar, Clock } from 'lucide-react';
 
 interface TicketProps {
   data: any;
@@ -11,7 +11,6 @@ export default function Ticket({ data }: TicketProps) {
     ? data.services 
     : (data.services ? [data.services] : []);
 
-  // Generate a fake ref for visual purposes (or use real ID if available)
   const refCode = Math.random().toString(36).substr(2, 8).toUpperCase();
 
   return (
@@ -19,7 +18,6 @@ export default function Ticket({ data }: TicketProps) {
       
       <div className="w-full max-w-sm animate-in zoom-in duration-500">
         
-        {/* SUCCESS MESSAGE */}
         <div className="text-center mb-6 space-y-2">
           <div className="mx-auto w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-4">
              <CheckCircle2 className="w-8 h-8 text-emerald-500" />
@@ -28,31 +26,25 @@ export default function Ticket({ data }: TicketProps) {
           <p className="text-slate-500 text-sm">Your appointment has been confirmed.</p>
         </div>
 
-        {/* TICKET CARD */}
         <div className="bg-white w-full rounded-2xl shadow-xl shadow-slate-200 overflow-hidden relative border border-slate-100">
           
-          {/* TICKET HEADER */}
           <div className="bg-rose-500 p-6 text-center text-white relative overflow-hidden">
              <div className="relative z-10">
                <h2 className="font-bold text-lg tracking-wide uppercase">Appointment Ticket</h2>
                <p className="text-rose-100 text-xs mt-1 opacity-90">Sisters & Brows</p>
              </div>
-             {/* Decorative Circles */}
              <div className="absolute -top-6 -right-6 w-20 h-20 bg-white/10 rounded-full blur-xl pointer-events-none" />
              <div className="absolute -bottom-6 -left-6 w-20 h-20 bg-white/10 rounded-full blur-xl pointer-events-none" />
           </div>
 
-          {/* CUTOUT EFFECT */}
           <div className="relative h-4 bg-white">
             <div className="absolute -left-2 top-[-8px] w-4 h-4 bg-slate-50 rounded-full z-10"></div>
             <div className="absolute -right-2 top-[-8px] w-4 h-4 bg-slate-50 rounded-full z-10"></div>
             <div className="absolute left-4 right-4 top-0 border-t-2 border-dashed border-slate-200"></div>
           </div>
 
-          {/* TICKET BODY */}
           <div className="px-6 pb-6 space-y-6">
             
-            {/* PRIMARY INFO */}
             <div className="grid grid-cols-2 gap-4 text-center">
               <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Date</p>
@@ -68,7 +60,6 @@ export default function Ticket({ data }: TicketProps) {
               </div>
             </div>
 
-            {/* BRANCH */}
             <div className="text-center">
                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Branch Location</p>
                <p className="text-slate-900 font-bold text-sm flex items-center justify-center gap-1.5">
@@ -79,7 +70,6 @@ export default function Ticket({ data }: TicketProps) {
 
             <div className="border-t border-slate-100 my-4"></div>
 
-            {/* DETAILS LIST */}
             <div className="space-y-3 text-sm">
               <div className="flex justify-between items-center">
                 <span className="text-slate-500">Guest Name</span>
@@ -88,7 +78,7 @@ export default function Ticket({ data }: TicketProps) {
               <div className="flex justify-between items-center">
                 <span className="text-slate-500">Type</span>
                 <span className="font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded text-xs uppercase tracking-wide">
-                  {data.type || "New Appointment"}
+                  {data.type === "New Appointment" ? "New Appointment" : (data.type || "Appointment")}
                 </span>
               </div>
               
@@ -106,11 +96,9 @@ export default function Ticket({ data }: TicketProps) {
               </div>
             </div>
 
-            {/* BARCODE / FOOTER */}
             <div className="pt-4 mt-4 border-t-2 border-dashed border-slate-100 text-center">
                <p className="text-[10px] text-slate-400 font-mono mb-2">REF: {refCode}</p>
                <div className="h-10 bg-slate-100 rounded flex items-center justify-center gap-1 opacity-40">
-                  {/* Fake Barcode Lines */}
                   {[...Array(24)].map((_, i) => (
                     <div key={i} className={`h-6 w-${Math.random() > 0.5 ? '0.5' : '1'} bg-slate-800`}></div>
                   ))}

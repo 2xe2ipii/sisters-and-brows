@@ -46,21 +46,16 @@ function normalizePhone(str: any) {
   return clean;
 }
 
-// CRITICAL FIX: Handles "January 25" matching "2026-01-25"
 function normalizeDate(raw: any) {
   if (!raw) return "";
   let str = String(raw).trim();
-  
-  // If format is "January 25", append current year to make it parseable
-  // (Assuming current year 2026 based on context)
+  // Handle "January 25" -> "January 25 2026"
   if (/^[A-Za-z]+\s\d{1,2}$/.test(str)) {
      str += ` ${new Date().getFullYear()}`; 
   }
-
   const d = new Date(str);
-  if (isNaN(d.getTime())) return str; // Fallback
+  if (isNaN(d.getTime())) return str;
   
-  // Return Standard YYYY-MM-DD
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
@@ -79,46 +74,39 @@ function getCleanTime(timeStr: any) {
   return s.replace(/\s/g, ''); 
 }
 
-// FIX: Safely find the header KEY from the loaded sheet values
-function getHeaderKey(sheet: any, keyword: string) {
-  // sheet.headerValues is the array of strings ["BRANCH", "DATE", ...]
-  const headers = sheet.headerValues; 
-  if (!headers || !Array.isArray(headers)) return keyword.toUpperCase(); // Fallback to guess
-
-  const match = headers.find((h: string) => h.toLowerCase().trim() === keyword.toLowerCase());
-  return match || keyword.toUpperCase(); // Return the EXACT string found in sheet (e.g. "DATE")
-}
-
 // --- ACTION 1: CHECK AVAILABILITY ---
 export async function getSlotAvailability(date: string, branch: string) {
   try {
     const { sheet, rows } = await getSheetRows();
+
+    // CRITICAL SAFETY CHECK
+    if (!sheet) {
+      console.error("CRITICAL: 'Raw_Intake' sheet not found!");
+      return { success: false, counts: {}, limit: 4 };
+    }
+
     const counts: Record<string, number> = {};
     
-    // 1. Prepare Targets
-    const targetDate = normalizeDate(date); // "2026-01-25"
+    const targetDate = normalizeDate(date);
     const targetFullBranch = normalizeStr(branch);
     const targetShortBranch = normalizeStr(BRANCH_MAP[branch] || branch);
     const limit = BRANCH_LIMITS[BRANCH_MAP[branch] || branch] || 4;
 
-    if (rows.length === 0) return { success: true, counts, limit };
+    if (!rows || rows.length === 0) return { success: true, counts, limit };
 
-    // 2. Dynamic Header Mapping
-    const colBranch = getHeaderKey(sheet, "branch");
-    const colDate = getHeaderKey(sheet, "date");
-    const colTime = getHeaderKey(sheet, "time");
+    // HARDCODED KEYS (Matches your CSV exactly)
+    const KEY_BRANCH = "BRANCH";
+    const KEY_DATE = "DATE";
+    const KEY_TIME = "TIME";
 
-    console.log(`Checking Raw_Intake: Date=${targetDate} | Branch=${targetShortBranch} | Limit=${limit}`);
-
-    // 3. Scan Rows
     rows.forEach((row) => {
-      const rDateRaw = row.get(colDate);
-      const rBranchRaw = row.get(colBranch);
-      const rTimeRaw = row.get(colTime);
+      // Direct key access - no guessing
+      const rDateRaw = row.get(KEY_DATE);
+      const rBranchRaw = row.get(KEY_BRANCH);
+      const rTimeRaw = row.get(KEY_TIME);
 
       if (!rTimeRaw) return;
 
-      // Normalize Sheet Data ("January 25" -> "2026-01-25")
       const rDate = normalizeDate(rDateRaw);
       const rBranch = normalizeStr(rBranchRaw);
       const rTime = getCleanTime(rTimeRaw);
@@ -131,7 +119,6 @@ export async function getSlotAvailability(date: string, branch: string) {
       }
     });
 
-    console.log("Counts found:", counts);
     return { success: true, counts, limit };
   } catch (error) {
     console.error("Availability Error:", error);
@@ -165,13 +152,9 @@ export async function submitBooking(prevState: any, formData: FormData) {
     const data = validated.data;
     const { sheet, rows } = await getSheetRows();
 
-    // 1. MAP HEADERS
-    const colBranch = getHeaderKey(sheet, "branch");
-    const colDate = getHeaderKey(sheet, "date");
-    const colTime = getHeaderKey(sheet, "time");
-    const colPhone = getHeaderKey(sheet, "contact number");
+    if (!sheet) throw new Error("Database Sheet Missing");
 
-    // 2. PREPARE TARGETS
+    // PREPARE DATA
     const targetDate = normalizeDate(data.date);
     const shortBranch = BRANCH_MAP[data.branch] || data.branch;
     const targetShortBranch = normalizeStr(shortBranch);
@@ -180,41 +163,43 @@ export async function submitBooking(prevState: any, formData: FormData) {
     const targetPhone = normalizePhone(data.phone);
     const limit = BRANCH_LIMITS[shortBranch] || 4;
 
-    // 3. SCAN AND COUNT
+    // HARDCODED KEYS
+    const KEY_BRANCH = "BRANCH";
+    const KEY_DATE = "DATE";
+    const KEY_TIME = "TIME";
+    const KEY_PHONE = "Contact Number";
+
     let slotCount = 0;
     let targetRowIndex = -1;
     let isMovingSlots = true; 
 
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i];
-      const rDate = normalizeDate(row.get(colDate));
-      const rBranch = normalizeStr(row.get(colBranch));
-      const rTime = getCleanTime(row.get(colTime));
-      const rPhone = normalizePhone(row.get(colPhone));
+    if (rows) {
+        for (let i = 0; i < rows.length; i++) {
+          const row = rows[i];
+          const rDate = normalizeDate(row.get(KEY_DATE));
+          const rBranch = normalizeStr(row.get(KEY_BRANCH));
+          const rTime = getCleanTime(row.get(KEY_TIME));
+          const rPhone = normalizePhone(row.get(KEY_PHONE));
 
-      const isSameBranch = (rBranch === targetShortBranch) || (rBranch === targetFullBranch);
-      const isSameDate = (rDate === targetDate);
-      const isSameTime = (rTime === targetTimeClean);
+          const isSameBranch = (rBranch === targetShortBranch) || (rBranch === targetFullBranch);
+          const isSameDate = (rDate === targetDate);
+          const isSameTime = (rTime === targetTimeClean);
 
-      if (isSameBranch && isSameDate && isSameTime) {
-        slotCount++;
-      }
+          if (isSameBranch && isSameDate && isSameTime) slotCount++;
 
-      // 4. IDEMPOTENCY (Update Logic)
-      if (rPhone === targetPhone) {
-        // If rescheduling or updating existing slot
-        if (data.type === 'Reschedule') {
-          targetRowIndex = i;
-          isMovingSlots = true; 
-        } 
-        else if (isSameBranch && isSameDate && isSameTime) {
-          targetRowIndex = i;
-          isMovingSlots = false; // Just updating details
+          if (rPhone === targetPhone) {
+            if (data.type === 'Reschedule') {
+              targetRowIndex = i;
+              isMovingSlots = true; 
+            } 
+            else if (isSameBranch && isSameDate && isSameTime) {
+              targetRowIndex = i;
+              isMovingSlots = false; 
+            }
+          }
         }
-      }
     }
 
-    // 5. BLOCKER: If New Booking AND Full -> STOP
     if (isMovingSlots && slotCount >= limit) {
       return { 
         success: false, 
@@ -222,15 +207,14 @@ export async function submitBooking(prevState: any, formData: FormData) {
       };
     }
 
-    // 6. WRITE TO SHEET
     const displayTime = data.time.split(' - ')[0].trim();
     const newRowData = {
-      [colBranch]: shortBranch,                    
+      [KEY_BRANCH]: shortBranch,                    
       'FACEBOOK NAME': data.fbLink || "",       
       'FULL NAME': `${data.firstName} ${data.lastName}`, 
-      [colPhone]: data.phone,             
-      [colDate]: targetDate,   // Saves as YYYY-MM-DD (Standard)                    
-      [colTime]: displayTime,
+      [KEY_PHONE]: data.phone,             
+      [KEY_DATE]: targetDate,                       
+      [KEY_TIME]: displayTime,
       'CLIENT #': "",                           
       'SERVICES': servicesString,               
       'SESSION': data.session,                  
@@ -241,7 +225,7 @@ export async function submitBooking(prevState: any, formData: FormData) {
       'TYPE': data.type || ""                   
     };
 
-    if (targetRowIndex !== -1) {
+    if (targetRowIndex !== -1 && rows) {
       const row = rows[targetRowIndex];
       row.assign(newRowData);
       await row.save();

@@ -5,7 +5,6 @@ import {
   User, 
   Scissors, 
   FileText, 
-  Edit2, 
   CheckCircle2,
   AlertCircle
 } from 'lucide-react';
@@ -18,7 +17,7 @@ interface ReviewSummaryProps {
   message?: string;
 }
 
-export default function ReviewSummary({ data, onEdit, isPending, success, message }: ReviewSummaryProps) {
+export default function ReviewSummary({ data, isPending, success, message }: ReviewSummaryProps) {
   
   const servicesList = Array.isArray(data.services) 
     ? data.services 
@@ -27,7 +26,6 @@ export default function ReviewSummary({ data, onEdit, isPending, success, messag
   return (
     <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
       
-      {/* ERROR BANNER */}
       {message && !success && (
         <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-100 flex items-center gap-3 text-red-600">
           <AlertCircle className="w-5 h-5 shrink-0" />
@@ -37,22 +35,13 @@ export default function ReviewSummary({ data, onEdit, isPending, success, messag
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         
-        {/* HEADER */}
-        <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+        {/* HEADER - Clean, no buttons */}
+        <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/50">
           <h2 className="text-lg font-bold text-slate-900">Booking Summary</h2>
-          <button 
-            type="button"
-            onClick={onEdit}
-            className="text-sm font-medium text-rose-500 hover:text-rose-700 flex items-center gap-1.5 transition-colors"
-          >
-            <Edit2 className="w-3.5 h-3.5" /> Edit
-          </button>
         </div>
 
-        {/* COMPACT LIST */}
         <div className="divide-y divide-slate-100">
           
-          {/* 1. WHEN (Date & Time) */}
           <div className="px-6 py-4 flex items-start gap-4">
             <div className="mt-0.5 text-slate-400"><Calendar className="w-5 h-5" /></div>
             <div>
@@ -68,7 +57,6 @@ export default function ReviewSummary({ data, onEdit, isPending, success, messag
             </div>
           </div>
 
-          {/* 2. WHERE (Branch) */}
           <div className="px-6 py-4 flex items-start gap-4">
              <div className="mt-0.5 text-slate-400"><MapPin className="w-5 h-5" /></div>
              <div>
@@ -77,7 +65,6 @@ export default function ReviewSummary({ data, onEdit, isPending, success, messag
              </div>
           </div>
 
-          {/* 3. WHAT (Services) */}
           <div className="px-6 py-4 flex items-start gap-4">
              <div className="mt-0.5 text-slate-400"><Scissors className="w-5 h-5" /></div>
              <div className="w-full">
@@ -97,7 +84,6 @@ export default function ReviewSummary({ data, onEdit, isPending, success, messag
              </div>
           </div>
 
-          {/* 4. WHO (Guest) */}
           <div className="px-6 py-4 flex items-start gap-4">
              <div className="mt-0.5 text-slate-400"><User className="w-5 h-5" /></div>
              <div>
@@ -107,7 +93,6 @@ export default function ReviewSummary({ data, onEdit, isPending, success, messag
              </div>
           </div>
 
-          {/* 5. NOTES (Optional) */}
           {data.others && (
             <div className="px-6 py-4 flex items-start gap-4">
                <div className="mt-0.5 text-slate-400"><FileText className="w-5 h-5" /></div>
@@ -120,7 +105,6 @@ export default function ReviewSummary({ data, onEdit, isPending, success, messag
 
         </div>
 
-        {/* FOOTER BUTTON */}
         <div className="p-6 bg-slate-50">
           <button 
             type="submit" 
