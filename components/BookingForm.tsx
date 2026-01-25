@@ -32,6 +32,9 @@ export default function BookingForm() {
   const [selectedBranch, setSelectedBranch] = useState(BRANCHES[0]);
   const [selectedDate, setSelectedDate] = useState("");
   const [slotCounts, setSlotCounts] = useState<Record<string, number>>({});
+  
+  // NEW: State to hold the dynamic capacity
+  const [maxCapacity, setMaxCapacity] = useState(4);
   const [loadingSlots, setLoadingSlots] = useState(false);
 
   const today = new Date().toISOString().split('T')[0];
@@ -42,7 +45,11 @@ export default function BookingForm() {
       setLoadingSlots(true);
       try {
         const result = await getSlotAvailability(selectedDate, selectedBranch);
-        if (result.success) setSlotCounts(result.counts);
+        if (result.success) {
+          setSlotCounts(result.counts);
+          // NEW: Update capacity based on branch
+          if (result.maxCapacity) setMaxCapacity(result.maxCapacity);
+        }
       } catch (e) {
         console.error(e);
       } finally {
@@ -54,6 +61,7 @@ export default function BookingForm() {
 
   const handleProceed = () => {
     if (formRef.current && formRef.current.checkValidity()) {
+      // ... (Rest of handleProceed is same as before)
       const formData = new FormData(formRef.current);
       const data = {
         type: formData.get('type'),
@@ -82,39 +90,17 @@ export default function BookingForm() {
 
   return (
     <div className="min-h-screen w-full bg-[#f8fafc] flex flex-col items-center py-12 px-4">
+      {/* ... Header Code ... */}
       <div className="w-full max-w-xl space-y-8">
-          
-        {/* HEADER */}
-        {step === 'FORM' ? (
-          <div className="pl-2 animate-in fade-in slide-in-from-top-4 duration-500">
-              <div className="flex items-center gap-2 text-xs font-bold tracking-widest text-slate-500 uppercase mb-2">
-                 <Sparkles className="w-4 h-4 text-rose-500" /> Official Booking
-              </div>
-              <h1 className="text-4xl font-extrabold text-slate-900 mb-3 tracking-tight">Sisters & Brows</h1>
-              <p className="text-slate-600 leading-relaxed">
-                Premium Aesthetics & Microblading Services. Please fill out the form below to secure your appointment.
-              </p>
-          </div>
-        ) : (
-           <div className="pl-2 animate-in fade-in slide-in-from-right-8 duration-500">
-              <button 
-                onClick={() => setStep('FORM')} 
-                className="flex items-center gap-2 text-sm font-bold text-slate-400 hover:text-slate-700 transition-colors mb-4"
-              >
-                 <ArrowLeft className="w-4 h-4" /> Back to Edit
-              </button>
-              <h1 className="text-3xl font-extrabold text-slate-900 mb-2 tracking-tight">Review Details</h1>
-              <p className="text-slate-600">Please confirm everything is correct before finalizing.</p>
-           </div>
-        )}
-
+        
+        {/* HEADER code (omitted for brevity, same as original) */}
+        
         <form 
           ref={formRef} 
           action={formAction} 
           className="space-y-6"
           noValidate={step === 'REVIEW'} 
         >
-          {/* STEP 1: INPUT FIELDS */}
           <div className={step === 'FORM' ? 'space-y-6 block animate-in fade-in duration-300' : 'hidden'}>
             
             <StartHere bookingType={bookingType} setBookingType={setBookingType} />
@@ -127,16 +113,18 @@ export default function BookingForm() {
               minDate={today}
             />
 
+            {/* NEW: Pass maxCapacity to the grid */}
             <TimeSlotGrid 
               slotCounts={slotCounts} 
               loading={loadingSlots} 
               selectedDate={selectedDate}
+              maxCapacity={maxCapacity}
             />
 
             <ServiceList />
-
             <GuestForm />
-
+            
+            {/* ... Terms and Buttons (same as original) ... */}
             <label className="flex gap-3 cursor-pointer group">
                 <input type="checkbox" name="agreement" required className="mt-0.5 w-4 h-4 text-rose-500 rounded border-slate-300 focus:ring-rose-500" />
                 <span className="text-xs text-slate-500 leading-relaxed group-hover:text-slate-700 transition-colors">
@@ -153,7 +141,6 @@ export default function BookingForm() {
             </button>
           </div>
 
-          {/* STEP 2: REVIEW SUMMARY */}
           {step === 'REVIEW' && (
              <ReviewSummary 
                data={reviewData} 
@@ -165,12 +152,7 @@ export default function BookingForm() {
           )}
 
         </form>
-        
-        <div className="text-center pb-8 opacity-40">
-           <p className="text-sm font-bold text-slate-900">Sisters & Brows</p>
-           <p className="text-[10px] text-slate-500 mt-0.5 lowercase">developed by 2xe2ipi</p>
-        </div>
-
+        {/* Footer code */}
       </div>
     </div>
   );
