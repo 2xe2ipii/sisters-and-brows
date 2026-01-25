@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { getSheetRows } from '@/lib/googleSheets';
 
 // --- CONFIGURATION ---
-const MAX_CAPACITY_PER_SLOT = 4;
+// REMOVED: const MAX_CAPACITY_PER_SLOT = 4;
 
 const BRANCH_MAP: Record<string, string> = {
   "Parañaque, Metro Manila": "PQ",
@@ -13,6 +13,16 @@ const BRANCH_MAP: Record<string, string> = {
   "Novaliches, Quezon City": "NV",
   "Dasmariñas, Cavite": "DM",
   "Comembo, Taguig": "TG"
+};
+
+// NEW: Define capacity per branch short code
+const BRANCH_CAPACITY: Record<string, number> = {
+  "LP": 4,
+  "SP": 2,
+  "NV": 4,
+  "DM": 6,
+  "PQ": 4,
+  "TG": 4
 };
 
 const formSchema = z.object({
@@ -30,7 +40,6 @@ const formSchema = z.object({
 });
 
 // --- HELPERS ---
-
 function normalize(str: any) {
   return str ? String(str).trim().toLowerCase() : "";
 }
@@ -63,6 +72,9 @@ export async function getSlotAvailability(date: string, branch: string) {
     const counts: Record<string, number> = {};
     const targetDate = normalizeDate(date);
     const shortBranch = BRANCH_MAP[branch] || branch;
+    
+    // NEW: Get the specific capacity for this branch (default to 4 if not found)
+    const maxCapacity = BRANCH_CAPACITY[shortBranch] || 4;
 
     const branchKey = "BRANCH";
     const dateKey = "DATE";
@@ -80,10 +92,11 @@ export async function getSlotAvailability(date: string, branch: string) {
       }
     });
 
-    return { success: true, counts };
+    // NEW: Return maxCapacity so the frontend knows when to disable buttons
+    return { success: true, counts, maxCapacity };
   } catch (error) {
     console.error("Availability Error:", error);
-    return { success: false, counts: {} };
+    return { success: false, counts: {}, maxCapacity: 4 };
   }
 }
 
@@ -124,6 +137,9 @@ export async function submitBooking(prevState: any, formData: FormData) {
     const targetTimeClean = getCleanTime(displayTime);
     const targetPhone = normalizePhone(data.phone);
     const shortBranch = BRANCH_MAP[data.branch] || data.branch;
+    
+    // NEW: Determine max capacity dynamically
+    const maxCapacity = BRANCH_CAPACITY[shortBranch] || 4;
 
     // 2. SCAN ROWS
     const colBranch = "BRANCH";
@@ -158,30 +174,30 @@ export async function submitBooking(prevState: any, formData: FormData) {
       }
     }
 
-    if (isMovingSlots && slotCount >= MAX_CAPACITY_PER_SLOT) {
+    // NEW: Use dynamic maxCapacity instead of constant
+    if (isMovingSlots && slotCount >= maxCapacity) {
       return { 
         success: false, 
-        message: `Sorry! The ${displayTime} slot is fully booked.` 
+        message: `Sorry! The ${displayTime} slot is fully booked (Max ${maxCapacity}).` 
       };
     }
 
     // 3. MAP TO SHEET COLUMNS (A-N)
-    // FIX: Added || "" to optional fields so they are never undefined
     const newRowData = {
-      'BRANCH': shortBranch,                    // A
-      'FACEBOOK NAME': data.fbLink || "",       // B (FIXED)
-      'FULL NAME': `${data.firstName} ${data.lastName}`, // C
-      'Contact Number': data.phone,             // D
-      'DATE': targetDate,                       // E
-      'TIME': displayTime,                      // F
-      'CLIENT #': "",                           // G
-      'SERVICES': servicesString,               // H
-      'SESSION': data.session,                  // I
-      'STATUS': 'Pending',                      // J
-      'ACK?': "NO ACK",                         // K
-      'MOP': "",                                // L
-      'REMARKS': data.others || "",             // M
-      'TYPE': data.type || ""                   // N (FIXED)
+      'BRANCH': shortBranch,                    
+      'FACEBOOK NAME': data.fbLink || "",       
+      'FULL NAME': `${data.firstName} ${data.lastName}`, 
+      'Contact Number': data.phone,             
+      'DATE': targetDate,                       
+      'TIME': displayTime,                      
+      'CLIENT #': "",                           
+      'SERVICES': servicesString,               
+      'SESSION': data.session,                  
+      'STATUS': 'Pending',                      
+      'ACK?': "NO ACK",                         
+      'MOP': "",                                
+      'REMARKS': data.others || "",             
+      'TYPE': data.type || ""                   
     };
 
     if (targetRowIndex !== -1) {
