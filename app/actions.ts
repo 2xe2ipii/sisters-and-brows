@@ -3,103 +3,29 @@
 import { z } from 'zod';
 import { 
   getAllServices, 
-  saveService, 
-  deleteService, 
   getAppConfig, 
-  saveAppConfig,
   getSheetRows 
 } from '@/lib/googleSheets';
 
-// --- CONFIGURATION ACTIONS ---
+// --- FETCH ACTIONS ---
 
-/**
- * Fetches the dynamic configuration (Time Slots & Branches) from Google Sheets.
- * Used by the Frontend to render the correct options.
- */
 export async function fetchAppConfig() {
   try {
     const config = await getAppConfig();
     return { success: true, data: config };
   } catch (error) {
     console.error("Config Fetch Error:", error);
-    // Fallback defaults if sheet fails
-    return { 
-      success: false, 
-      data: { 
-        timeSlots: ["10:00 AM - 11:30 AM", "11:30 AM - 1:00 PM", "1:00 PM - 2:30 PM", "2:30 PM - 4:00 PM", "4:00 PM - 5:30 PM", "5:30 PM - 7:00 PM"], 
-        branches: [{ name: "Lipa City", code: "LP", limit: 4 }] 
-      } 
-    };
+    return { success: false, data: { timeSlots: [], branches: [] } };
   }
 }
-
-export async function updateTimeSlots(password: string, slots: string[]) {
-  if (password !== process.env.ADMIN_PASSWORD) return { success: false, message: "Invalid Password" };
-  try {
-    await saveAppConfig('TIME_SLOTS', slots);
-    return { success: true };
-  } catch (e) {
-    return { success: false, message: "Error updating time slots" };
-  }
-}
-
-export async function updateBranches(password: string, branches: any[]) {
-  if (password !== process.env.ADMIN_PASSWORD) return { success: false, message: "Invalid Password" };
-  try {
-    await saveAppConfig('BRANCH_CONFIG', branches);
-    return { success: true };
-  } catch (e) {
-    return { success: false, message: "Error updating branches" };
-  }
-}
-
-// --- SERVICE ACTIONS ---
 
 export async function fetchServices() {
   try {
     const services = await getAllServices();
     return { success: true, data: services };
   } catch (error) {
+    console.error("Services Fetch Error:", error);
     return { success: false, data: [] };
-  }
-}
-
-export async function upsertService(prevState: any, formData: FormData) {
-  const password = formData.get('adminPassword');
-  if (password !== process.env.ADMIN_PASSWORD) {
-    return { success: false, message: "Invalid Password" };
-  }
-
-  // Handle "PHP" prefix automatically
-  let priceRaw = formData.get('price') as string;
-  if (!priceRaw.toLowerCase().startsWith('₱') && !priceRaw.toLowerCase().startsWith('php')) {
-    priceRaw = `₱${priceRaw.trim()}`;
-  }
-
-  const data = {
-    id: formData.get('id') as string || `svc_${Date.now()}`,
-    name: formData.get('name') as string,
-    price: priceRaw,
-    category: formData.get('category') as string,
-    image: formData.get('image') as string,
-    desc: formData.get('desc') as string,
-  };
-
-  try {
-    await saveService(data);
-    return { success: true, message: "Service Saved!" };
-  } catch (error) {
-    return { success: false, message: "Failed to save service." };
-  }
-}
-
-export async function removeServiceAction(id: string, password: string) {
-  if (password !== process.env.ADMIN_PASSWORD) return { success: false };
-  try {
-    await deleteService(id);
-    return { success: true };
-  } catch (e) {
-    return { success: false };
   }
 }
 
@@ -121,8 +47,9 @@ async function getDynamicConfig() {
   return { BRANCH_MAP, BRANCH_LIMITS };
 }
 
-// Helpers
+// Data Normalization Helpers
 function normalizeStr(str: any) { return String(str).trim().toLowerCase(); }
+
 function normalizeDate(raw: any) {
   if (!raw) return "";
   let str = String(raw).trim();
@@ -136,7 +63,9 @@ function normalizeDate(raw: any) {
   const day = String(d.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
+
 function getCleanTime(timeStr: any) { return String(timeStr).split(' - ')[0].trim().toLowerCase(); }
+
 function normalizePhone(str: any) { 
   if (!str) return "";
   let clean = String(str).replace(/\D/g, ''); 
@@ -144,13 +73,14 @@ function normalizePhone(str: any) {
   if (clean.startsWith('9') && clean.length === 10) clean = '0' + clean;
   return clean;
 }
+
 function findColumnKey(headers: string[], keyword: string) {
   if (headers.includes(keyword)) return keyword;
   const normKeyword = keyword.toLowerCase().replace(/[^a-z0-9]/g, '');
   return headers.find(h => h.toLowerCase().replace(/[^a-z0-9]/g, '') === normKeyword);
 }
 
-// --- ACTION: CHECK AVAILABILITY ---
+// --- CHECK AVAILABILITY ---
 export async function getSlotAvailability(date: string, branch: string) {
   const { BRANCH_MAP, BRANCH_LIMITS } = await getDynamicConfig();
   
@@ -189,7 +119,7 @@ export async function getSlotAvailability(date: string, branch: string) {
   }
 }
 
-// --- ACTION: SUBMIT BOOKING ---
+// --- SUBMIT BOOKING ---
 const formSchema = z.object({
   type: z.string().optional(),
   branch: z.string().min(1),
@@ -245,11 +175,40 @@ export async function submitBooking(prevState: any, formData: FormData) {
     const targetShortBranch = normalizeStr(shortBranch);
     const targetFullBranch = normalizeStr(data.branch);
     const targetTimeClean = getCleanTime(data.time);
-    const targetPhone = normalizePhone(data.phone);
     const limit = BRANCH_LIMITS[shortBranch] || 4;
     const displayTime = data.time.split(' - ')[0].trim();
 
-    // DESIRED DATA MAPPING
+    // AVAILABILITY CHECK
+    const KEY_BRANCH = findColumnKey(headers, "BRANCH");
+    const KEY_DATE = findColumnKey(headers, "DATE");
+    const KEY_TIME = findColumnKey(headers, "TIME");
+    const KEY_PHONE = findColumnKey(headers, "Contact Number");
+
+    let slotCount = 0;
+    
+    if (rows && KEY_BRANCH && KEY_DATE && KEY_TIME && KEY_PHONE) {
+        for (let i = 0; i < rows.length; i++) {
+          const row = rows[i];
+          const rDate = normalizeDate(row.get(KEY_DATE));
+          const rBranch = normalizeStr(row.get(KEY_BRANCH));
+          const rTime = getCleanTime(row.get(KEY_TIME));
+
+          if ((rBranch === targetShortBranch || rBranch === targetFullBranch) && 
+              rDate === targetDate && 
+              rTime === getCleanTime(data.time)) {
+            slotCount++;
+          }
+        }
+    }
+
+    if (slotCount >= limit) {
+      return { 
+        success: false, 
+        message: `Sorry! The ${displayTime} slot at ${data.branch} is full (Max ${limit}).` 
+      };
+    }
+
+    // WRITE TO SHEET
     const desiredData: Record<string, string> = {
       "BRANCH": shortBranch,
       "FACEBOOK NAME": data.fbLink || "",
@@ -267,37 +226,6 @@ export async function submitBooking(prevState: any, formData: FormData) {
       "TYPE": data.type || ""
     };
 
-    // CHECK AVAILABILITY
-    const KEY_BRANCH = findColumnKey(headers, "BRANCH");
-    const KEY_DATE = findColumnKey(headers, "DATE");
-    const KEY_TIME = findColumnKey(headers, "TIME");
-    const KEY_PHONE = findColumnKey(headers, "Contact Number");
-
-    let slotCount = 0;
-    
-    if (rows && KEY_BRANCH && KEY_DATE && KEY_TIME && KEY_PHONE) {
-        for (let i = 0; i < rows.length; i++) {
-          const row = rows[i];
-          const rDate = normalizeDate(row.get(KEY_DATE));
-          const rBranch = normalizeStr(row.get(KEY_BRANCH));
-          const rTime = getCleanTime(row.get(KEY_TIME));
-
-          if ((rBranch === targetShortBranch || rBranch === targetFullBranch) && 
-              rDate === targetDate && 
-              rTime === targetTimeClean) {
-            slotCount++;
-          }
-        }
-    }
-
-    if (slotCount >= limit) {
-      return { 
-        success: false, 
-        message: `Sorry! The ${displayTime} slot at ${data.branch} is full (Max ${limit}).` 
-      };
-    }
-
-    // WRITE TO SHEET
     const rowPayload: Record<string, any> = {};
     Object.entries(desiredData).forEach(([key, value]) => {
       const actualHeader = findColumnKey(headers, key);
