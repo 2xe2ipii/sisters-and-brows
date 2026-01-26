@@ -29,6 +29,8 @@ const formSchema = z.object({
   lastName: z.string().min(1),
   phone: z.string().min(1),
   others: z.string().optional(),
+  ack: z.enum(["ACK", "NO ACK"]),
+  mop: z.enum(["cash", "g-cash", "maya", "bank", "other"])
 });
 
 // --- HELPERS ---
@@ -151,6 +153,8 @@ export async function submitBooking(prevState: any, formData: FormData) {
     lastName: formData.get('lastName') || "",
     phone: formData.get('phone') || "",
     others: formData.get('others') || "",
+    ack: formData.get('ack') || "NO ACK",
+    mop: formData.get('mop') || "cash",
   };
 
   const validated = formSchema.safeParse(rawData);
@@ -189,8 +193,8 @@ export async function submitBooking(prevState: any, formData: FormData) {
       "SERVICES": servicesString,
       "SESSION": data.session,
       "STATUS": "Pending",
-      "ACK?": "NO ACK",
-      "M O P": "",        // We try "M O P"
+      "ACK?": data.ack,
+      "M O P": data.mop,        // We try "M O P"
       "REMARKS": data.others || "",
       "TYPE": data.type || ""
     };
