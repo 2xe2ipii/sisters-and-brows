@@ -1,20 +1,16 @@
 'use client'
 
-import { 
-  MapPin, Calendar, Clock, User, Scissors, CreditCard
-} from 'lucide-react';
+import { MapPin, Calendar, Clock, User, Scissors, CreditCard } from 'lucide-react';
 import { useFormStatus } from 'react-dom';
 
-// Define the shape of the props
 interface ReviewSummaryProps {
   data: any;
-  onBack: () => void; // <--- This was missing
+  // onBack prop removed
 }
 
-export default function ReviewSummary({ data, onBack }: ReviewSummaryProps) {
+export default function ReviewSummary({ data }: ReviewSummaryProps) {
   const { pending } = useFormStatus();
 
-  // Ensure services is always an array for rendering
   const servicesList = Array.isArray(data.services) ? data.services : [data.services];
 
   return (
@@ -25,7 +21,6 @@ export default function ReviewSummary({ data, onBack }: ReviewSummaryProps) {
       </div>
 
       <div className="mx-4 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden divide-y divide-slate-100">
-        
         {/* Branch & Date */}
         <div className="p-6 grid grid-cols-2 gap-6">
           <div className="space-y-1">
@@ -42,7 +37,7 @@ export default function ReviewSummary({ data, onBack }: ReviewSummaryProps) {
           </div>
         </div>
 
-        {/* Time & Session */}
+        {/* Time */}
         <div className="px-6 py-4 flex items-center gap-4 bg-slate-50/50">
            <div className="p-2 bg-rose-50 text-rose-500 rounded-lg">
              <Clock className="w-5 h-5" />
@@ -50,11 +45,6 @@ export default function ReviewSummary({ data, onBack }: ReviewSummaryProps) {
            <div>
              <p className="text-xs font-bold text-slate-400 uppercase">Time Slot</p>
              <p className="text-slate-900 font-bold">{data.time ? data.time.split('-')[0] : ''}</p>
-           </div>
-           <div className="ml-auto text-right">
-             <span className="inline-block px-3 py-1 bg-white border border-slate-200 rounded-full text-[10px] font-bold text-slate-600 uppercase">
-               {data.session}
-             </span>
            </div>
         </div>
 
@@ -74,7 +64,7 @@ export default function ReviewSummary({ data, onBack }: ReviewSummaryProps) {
           </div>
         </div>
 
-        {/* Payment & Extras */}
+        {/* Payment */}
         <div className="px-6 py-4 flex items-start gap-4">
            <div className="mt-0.5 text-slate-400"><CreditCard className="w-5 h-5" /></div>
            <div>
@@ -83,7 +73,7 @@ export default function ReviewSummary({ data, onBack }: ReviewSummaryProps) {
                <span className="capitalize">{data.mop}</span>
                <span className="text-slate-300">|</span>
                <span className={data.ack === 'ACK' ? 'text-rose-500' : 'text-slate-500'}>
-                  {data.ack === 'ACK' ? 'With After Care Kit' : 'No Kit'}
+                  {data.ack === 'ACK' ? 'With Kit' : 'No Kit'}
                </span>
              </div>
            </div>
@@ -95,26 +85,15 @@ export default function ReviewSummary({ data, onBack }: ReviewSummaryProps) {
           <div className="space-y-1">
              <p className="text-sm font-bold text-slate-900">{data.firstName} {data.lastName}</p>
              <p className="text-xs text-slate-500 font-mono">{data.phone}</p>
-             {data.others && (
-               <p className="text-xs text-slate-500 italic mt-2">"{data.others}"</p>
-             )}
           </div>
         </div>
       </div>
 
-      <div className="fixed bottom-0 left-0 w-full bg-white border-t border-slate-100 p-4 flex gap-3 z-50">
-        <button 
-          type="button" 
-          onClick={onBack} 
-          disabled={pending}
-          className="flex-1 py-3.5 rounded-xl font-bold text-slate-500 bg-slate-100 disabled:opacity-50"
-        >
-          Back
-        </button>
+      <div className="fixed bottom-0 left-0 w-full bg-white border-t border-slate-100 p-4 z-50">
         <button 
           type="submit" 
           disabled={pending}
-          className="flex-[2] py-3.5 rounded-xl font-bold text-white bg-rose-500 shadow-lg shadow-rose-200 disabled:bg-rose-300 flex justify-center items-center gap-2"
+          className="w-full py-3.5 rounded-xl font-bold text-white bg-rose-500 shadow-lg shadow-rose-200 disabled:bg-rose-300 flex justify-center items-center gap-2"
         >
           {pending ? 'Confirming...' : 'Confirm Booking'}
         </button>

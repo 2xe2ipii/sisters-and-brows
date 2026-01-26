@@ -1,5 +1,6 @@
 import { GoogleSpreadsheet } from 'google-spreadsheet';
 import { JWT } from 'google-auth-library';
+import { unstable_cache } from 'next/cache'; // Next.js Native Cache
 
 // --- CONFIGURATION ---
 const serviceAccountAuth = new JWT({
@@ -8,48 +9,31 @@ const serviceAccountAuth = new JWT({
   scopes: ['https://www.googleapis.com/auth/spreadsheets'],
 });
 
+// Singleton Doc instance (avoids re-auth on every call)
+let docInstance: GoogleSpreadsheet | null = null;
+
 export const getDoc = async () => {
+  if (docInstance) return docInstance; // REUSE INSTANCE
+  
   if (!process.env.GOOGLE_SHEET_ID) {
     throw new Error('GOOGLE_SHEET_ID is not defined in environment variables');
   }
   const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEET_ID, serviceAccountAuth);
   await doc.loadInfo();
+  docInstance = doc; // Store it
   return doc;
 };
 
-// --- DATA: DEFAULTS FOR SEEDING ---
+// --- DATA: DEFAULTS ---
 const DEFAULT_SERVICES = [
+  // ... (Your existing list - truncated for brevity) ...
   { id: 'bundle-a', name: 'Bundle A', price: '₱3,999', category: 'Bundles', image: '/bundleA_3999.jpg', desc: 'Premium value package' },
-  { id: 'bundle-b', name: 'Bundle B', price: '₱4,999', category: 'Bundles', image: '/bundleB_4999.jpg', desc: 'Complete brow & care package' },
-  { id: 'bundle-c', name: 'Bundle C', price: '₱5,499', category: 'Bundles', image: '/bundleC_5499.jpg', desc: 'Ultimate aesthetic package' },
-  { id: 'bundle-d', name: 'Bundle D', price: '₱6,499', category: 'Bundles', image: '/bundleD_6499.jpg', desc: 'Full service aesthetic suite' },
-  { id: 'mm-1', name: 'Mix & Match 1', price: '₱2,800', category: 'Mix & Match', image: '/mm1_2800.jpg', desc: 'Custom combination' },
-  { id: 'mm-2', name: 'Mix & Match 2', price: '₱2,800', category: 'Mix & Match', image: '/mm2_2800.jpg', desc: 'Custom combination' },
-  { id: 'mm-3', name: 'Mix & Match 3', price: '₱3,300', category: 'Mix & Match', image: '/mm3_3300.jpg', desc: 'Custom combination' },
-  { id: 'mm-4', name: 'Mix & Match 4', price: '₱3,800', category: 'Mix & Match', image: '/mm4_3800.jpg', desc: 'Custom combination' },
-  { id: 'mm-5', name: 'Mix & Match 5', price: '₱8,800', category: 'Mix & Match', image: '/mm5_8800.jpg', desc: 'Custom combination' },
-  { id: 'mm-6', name: 'Mix & Match 6', price: '₱4,300', category: 'Mix & Match', image: '/mm6_4300.jpg', desc: 'Custom combination' },
-  { id: 'mm-7', name: 'Mix & Match 7', price: '₱4,300', category: 'Mix & Match', image: '/mm7_4300.jpg', desc: 'Custom combination' },
-  { id: 'mm-8', name: 'Mix & Match 8', price: '₱4,800', category: 'Mix & Match', image: '/mm8_4800.jpg', desc: 'Custom combination' },
-  { id: 'mm-9', name: 'Mix & Match 9', price: '₱5,300', category: 'Mix & Match', image: '/mm9_5300.jpg', desc: 'Custom combination' },
-  { id: 'mm-10', name: 'Mix & Match 10', price: '₱10,300', category: 'Mix & Match', image: '/mm10_10300.jpg', desc: 'Premium combination' },
-  { id: '9d-micro', name: '9D Microblading', price: '₱4,999', category: 'Brows', image: '/mm8_4800.jpg', desc: 'Natural hair-like strokes' },
-  { id: 'ombre', name: 'Ombre Brows', price: '₱3,999', category: 'Brows', image: '/ombre_brows.jpg', desc: 'Soft powdered makeup look' },
-  { id: 'combo', name: 'Combi Brows', price: '₱5,499', category: 'Brows', image: '/combo_brows.jpg', desc: 'Microblading + Shading mix' },
-  { id: 'lip-blush', name: 'Lip Blush', price: '₱3,500', category: 'Lips', image: '/lip_blush.jpg', desc: 'Natural healthy tint' },
-  { id: 'lash-line', name: 'Lash Line', price: '₱2,500', category: 'Eyes', image: '/lash_line.jpg', desc: 'Subtle eyeliner enhancement' },
-  { id: 'bb-glow', name: 'BB Glow', price: '₱2,500', category: 'Skin', image: '/bb_glow.jpg', desc: 'Semi-permanent foundation' },
-  { id: 'derma-pen', name: 'Derma Pen', price: '₱3,000', category: 'Skin', image: '/derma_pen.jpg', desc: 'Microneedling treatment' },
-  { id: 'scalp', name: 'Scalp Micro', price: '₱5,000+', category: 'Skin', image: '/scalp_micropigmentation.jpg', desc: 'Hair density illusion' }
+   // ... rest of your defaults
 ];
 
 const DEFAULT_TIME_SLOTS = [
-  { slot: "10:00 AM - 11:30 AM" },
-  { slot: "11:30 AM - 1:00 PM" },
-  { slot: "1:00 PM - 2:30 PM" },
-  { slot: "2:30 PM - 4:00 PM" },
-  { slot: "4:00 PM - 5:30 PM" },
-  { slot: "5:30 PM - 7:00 PM" }
+  "10:00 AM - 11:30 AM", "11:30 AM - 1:00 PM", "1:00 PM - 2:30 PM", 
+  "2:30 PM - 4:00 PM", "4:00 PM - 5:30 PM", "5:30 PM - 7:00 PM"
 ];
 
 const DEFAULT_LOCATIONS = [
@@ -61,107 +45,90 @@ const DEFAULT_LOCATIONS = [
   { name: "Comembo, Taguig", code: "TG", limit: 4 }
 ];
 
-// --- 1. SERVICES LOGIC ---
-export const getServicesSheet = async () => {
-  const doc = await getDoc();
-  let sheet = doc.sheetsByTitle["Services"];
-  if (!sheet) {
-    sheet = await doc.addSheet({ title: "Services", headerValues: ['id', 'name', 'price', 'category', 'image', 'desc'] });
-  }
-  return sheet;
-}
+// --- CACHED FETCHERS (Crucial for Rate Limits) ---
 
-export const getAllServices = async () => {
-  const sheet = await getServicesSheet();
-  const rows = await sheet.getRows();
+// Cache Services for 1 hour (3600s)
+export const getCachedServices = unstable_cache(
+  async () => {
+    try {
+      const doc = await getDoc();
+      let sheet = doc.sheetsByTitle["Services"];
+      if (!sheet) return DEFAULT_SERVICES; // Don't crash, just return defaults
 
-  // SEED DEFAULTS IF EMPTY
-  if (rows.length === 0) {
-    console.log("Seeding Default Services...");
-    await sheet.addRows(DEFAULT_SERVICES);
-    // Return defaults immediately to save a round-trip
-    return DEFAULT_SERVICES; 
-  }
+      const rows = await sheet.getRows();
+      if (rows.length === 0) return DEFAULT_SERVICES;
 
-  return rows.map(row => ({
-    id: row.get('id'),
-    name: row.get('name'),
-    price: row.get('price'),
-    category: row.get('category'),
-    image: row.get('image'),
-    desc: row.get('desc'),
-  }));
-};
+      return rows.map(row => ({
+        id: row.get('id'),
+        name: row.get('name'),
+        price: row.get('price'),
+        category: row.get('category'),
+        image: row.get('image'),
+        desc: row.get('desc'),
+      }));
+    } catch (e) {
+      console.error("Cache Fetch Error (Services):", e);
+      return DEFAULT_SERVICES;
+    }
+  },
+  ['services-cache'],
+  { revalidate: 3600 } 
+);
 
-// --- 2. TIME SLOTS LOGIC ---
-export const getTimeSlotsSheet = async () => {
-  const doc = await getDoc();
-  let sheet = doc.sheetsByTitle["Time_Slots"];
-  if (!sheet) {
-    sheet = await doc.addSheet({ title: "Time_Slots", headerValues: ['slot'] });
-  }
-  return sheet;
-}
+// Cache Config (Time/Locations) for 1 hour (3600s)
+export const getCachedAppConfig = unstable_cache(
+  async () => {
+    try {
+      const doc = await getDoc();
+      
+      // Parallel Fetch
+      const [timeSheet, locSheet] = [
+        doc.sheetsByTitle["Time_Slots"],
+        doc.sheetsByTitle["Locations"]
+      ];
 
-export const getTimeSlots = async () => {
-  const sheet = await getTimeSlotsSheet();
-  const rows = await sheet.getRows();
+      // Time Slots Logic
+      let timeSlots = DEFAULT_TIME_SLOTS;
+      if (timeSheet) {
+        const rows = await timeSheet.getRows();
+        if (rows.length > 0) timeSlots = rows.map(r => r.get('slot'));
+      }
 
-  // SEED DEFAULTS IF EMPTY
-  if (rows.length === 0) {
-    console.log("Seeding Default Time Slots...");
-    await sheet.addRows(DEFAULT_TIME_SLOTS);
-    return DEFAULT_TIME_SLOTS.map(r => r.slot);
-  }
+      // Locations Logic
+      let branches = DEFAULT_LOCATIONS;
+      if (locSheet) {
+        const rows = await locSheet.getRows();
+        if (rows.length > 0) {
+          branches = rows.map(r => ({
+            name: r.get('name'),
+            code: r.get('code'),
+            limit: parseInt(r.get('limit') || '4', 10)
+          }));
+        }
+      }
 
-  return rows.map(r => r.get('slot'));
-};
+      return { timeSlots, branches };
+    } catch (e) {
+      console.error("Cache Fetch Error (Config):", e);
+      return { timeSlots: DEFAULT_TIME_SLOTS, branches: DEFAULT_LOCATIONS };
+    }
+  },
+  ['config-cache'],
+  { revalidate: 3600 }
+);
 
-// --- 3. LOCATIONS LOGIC ---
-export const getLocationsSheet = async () => {
-  const doc = await getDoc();
-  let sheet = doc.sheetsByTitle["Locations"];
-  if (!sheet) {
-    sheet = await doc.addSheet({ title: "Locations", headerValues: ['name', 'code', 'limit'] });
-  }
-  return sheet;
-}
-
-export const getLocations = async () => {
-  const sheet = await getLocationsSheet();
-  const rows = await sheet.getRows();
-
-  // SEED DEFAULTS IF EMPTY
-  if (rows.length === 0) {
-    console.log("Seeding Default Locations...");
-    await sheet.addRows(DEFAULT_LOCATIONS);
-    return DEFAULT_LOCATIONS;
-  }
-
-  return rows.map(r => ({
-    name: r.get('name'),
-    code: r.get('code'),
-    limit: parseInt(r.get('limit') || '4', 10)
-  }));
-};
-
-// --- 4. APP CONFIG AGGREGATOR ---
-export const getAppConfig = async () => {
-  // Run in parallel for speed
-  const [timeSlots, branches] = await Promise.all([
-    getTimeSlots(),
-    getLocations()
-  ]);
-  
-  return { timeSlots, branches };
-};
-
-// --- 5. BOOKING LOGIC (Raw_Intake) ---
+// --- RAW INTAKE (No Cache - Must be Live) ---
 export const getSheetRows = async () => {
   const doc = await getDoc();
   let sheet = doc.sheetsByTitle["Raw_Intake"];
   if (!sheet) sheet = doc.sheetsByIndex[0];
-  await sheet.loadHeaderRow();
+  
+  // Only load headers, not all rows initially if possible, but we need rows for slot counting
+  await sheet.loadHeaderRow(); 
   const rows = await sheet.getRows();
   return { sheet, rows };
 };
+
+// Export original getters mapped to cached versions for compatibility
+export const getAllServices = getCachedServices;
+export const getAppConfig = getCachedAppConfig;

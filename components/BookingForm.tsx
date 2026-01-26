@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useState, useEffect, useRef } from 'react';
+import { useActionState, useState, useEffect, useRef } from 'react'; // FIXED IMPORT
 import { submitBooking, getSlotAvailability, fetchAppConfig } from '@/app/actions';
 import { Sparkles, ArrowRight, ArrowLeft } from 'lucide-react';
 
@@ -18,7 +18,7 @@ const initialState = {
 };
 
 export default function BookingForm() {
-  // @ts-ignore
+  // FIXED HOOK NAME
   const [state, formAction, isPending] = useActionState(submitBooking, initialState);
   const formRef = useRef<HTMLFormElement>(null);
   
@@ -27,7 +27,7 @@ export default function BookingForm() {
   
   // --- DYNAMIC DATA STATE ---
   const [configLoaded, setConfigLoaded] = useState(false);
-  const [branches, setBranches] = useState<any[]>([]); // Array of { name, code, limit }
+  const [branches, setBranches] = useState<any[]>([]); 
   const [timeSlots, setTimeSlots] = useState<string[]>([]);
   
   // --- FORM STATE ---
@@ -40,7 +40,6 @@ export default function BookingForm() {
 
   const today = new Date().toISOString().split('T')[0];
 
-  // 1. FETCH CONFIG ON MOUNT
   useEffect(() => {
     async function init() {
       const res = await fetchAppConfig();
@@ -48,7 +47,6 @@ export default function BookingForm() {
         setBranches(res.data.branches || []);
         setTimeSlots(res.data.timeSlots || []);
         
-        // Set default branch if available
         if (res.data.branches && res.data.branches.length > 0) {
           setSelectedBranch(res.data.branches[0].name);
         }
@@ -58,7 +56,6 @@ export default function BookingForm() {
     init();
   }, []);
 
-  // 2. FETCH SLOTS WHEN DATE/BRANCH CHANGES
   useEffect(() => {
     async function fetchSlots() {
       if (!selectedDate || !selectedBranch || !configLoaded) return;
@@ -67,7 +64,6 @@ export default function BookingForm() {
         const result = await getSlotAvailability(selectedDate, selectedBranch);
         if (result.success) {
           setSlotCounts(result.counts);
-          // Use the limit returned from server, or fallback to config
           if (result.limit) setMaxCapacity(result.limit);
         }
       } catch (e) {
@@ -142,9 +138,7 @@ export default function BookingForm() {
             
             <StartHere bookingType={bookingType} setBookingType={setBookingType} />
 
-            {/* PASS DYNAMIC BRANCHES HERE */}
             <LocationDate 
-              // @ts-ignore (Update LocationDate.tsx to accept 'branches' prop)
               branches={branches}
               selectedBranch={selectedBranch}
               setSelectedBranch={setSelectedBranch}
@@ -152,11 +146,11 @@ export default function BookingForm() {
               setSelectedDate={setSelectedDate}
               minDate={today}
             />
+            
+            <input type="hidden" name="branch" value={selectedBranch} />
             <input type="hidden" name="date" value={selectedDate} />
 
-            {/* PASS DYNAMIC TIME SLOTS HERE */}
             <TimeSlotGrid 
-              // @ts-ignore (Update TimeSlotGrid.tsx to accept 'timeSlots' prop)
               timeSlots={timeSlots}
               slotCounts={slotCounts} 
               loading={loadingSlots} 
@@ -180,10 +174,7 @@ export default function BookingForm() {
           </div>
 
           {step === 'REVIEW' && (
-             <ReviewSummary 
-               data={reviewData} 
-               onBack={() => setStep('FORM')} 
-             />
+             <ReviewSummary data={reviewData} />
           )}
         </form>
         

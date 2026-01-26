@@ -1,23 +1,10 @@
-import { useState, useEffect } from 'react';
-import { MapPin, ChevronDown, ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
-import { 
-  format, 
-  addMonths, 
-  subMonths, 
-  startOfMonth, 
-  endOfMonth, 
-  startOfWeek, 
-  endOfWeek, 
-  eachDayOfInterval, 
-  isSameMonth, 
-  isSameDay, 
-  isBefore, 
-  startOfDay,
-  parseISO 
-} from 'date-fns';
-import { BRANCHES } from './constants';
+'use client';
+
+import { useState } from 'react';
+import { MapPin, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface LocationDateProps {
+  branches: any[];
   selectedBranch: string;
   setSelectedBranch: (val: string) => void;
   selectedDate: string;
@@ -26,6 +13,7 @@ interface LocationDateProps {
 }
 
 export default function LocationDate({ 
+  branches, 
   selectedBranch, 
   setSelectedBranch, 
   selectedDate, 
@@ -33,140 +21,108 @@ export default function LocationDate({
   minDate 
 }: LocationDateProps) {
   
-  // State for the calendar view (defaults to today or selected date)
-  const [currentMonth, setCurrentMonth] = useState(
-    selectedDate ? parseISO(selectedDate) : new Date()
-  );
+  const [currentMonth, setCurrentMonth] = useState(new Date());
 
   // Generate calendar days
-  const monthStart = startOfMonth(currentMonth);
-  const monthEnd = endOfMonth(monthStart);
-  const startDate = startOfWeek(monthStart);
-  const endDate = endOfWeek(monthEnd);
+  const daysInMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate();
+  const firstDayOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1).getDay();
+  
+  const days = [];
+  for (let i = 0; i < firstDayOfMonth; i++) days.push(null); // Empty slots
+  for (let i = 1; i <= daysInMonth; i++) days.push(i);
 
-  const calendarDays = eachDayOfInterval({
-    start: startDate,
-    end: endDate,
-  });
-
-  const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-  // Parsed limits for disabling
-  const minDateObj = startOfDay(parseISO(minDate));
-
-  const handlePrevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
-  const handleNextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
-
-  const onDateClick = (day: Date) => {
-    // Format as YYYY-MM-DD for consistency with the rest of your app
-    setSelectedDate(format(day, 'yyyy-MM-dd'));
+  const handleDateClick = (day: number) => {
+    const d = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+    const offset = d.getTimezoneOffset(); 
+    const dateStr = new Date(d.getTime() - (offset*60*1000)).toISOString().split('T')[0];
+    
+    if (dateStr >= minDate) {
+      setSelectedDate(dateStr);
+    }
   };
 
+  const nextMonth = () => setCurrentMonth(new Date(currentMonth.setMonth(currentMonth.getMonth() + 1)));
+  const prevMonth = () => setCurrentMonth(new Date(currentMonth.setMonth(currentMonth.getMonth() - 1)));
+
+  const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-8 animate-in fade-in slide-in-from-top-4 duration-500">
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6 animate-in fade-in slide-in-from-top-4 duration-500">
       
-      {/* HEADER */}
-      <div className="flex items-center gap-2 text-slate-900 font-bold text-lg">
-        <MapPin className="w-5 h-5 text-slate-400" /> Location & Date
+      {/* 1. COMPACT BRANCH DROPDOWN */}
+      <div className="space-y-2">
+        <label className="flex items-center gap-2 text-slate-900 font-bold text-sm uppercase tracking-wide">
+          <MapPin className="w-4 h-4 text-rose-500" /> Select Branch
+        </label>
+        <div className="relative">
+          <select 
+            value={selectedBranch}
+            onChange={(e) => setSelectedBranch(e.target.value)}
+            className="w-full appearance-none bg-slate-50 border border-slate-200 text-slate-900 font-bold rounded-xl p-4 pr-10 focus:ring-2 focus:ring-rose-500 outline-none cursor-pointer"
+          >
+            {branches.map((b) => (
+              <option key={b.code} value={b.name}>{b.name}</option>
+            ))}
+          </select>
+          <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+          </div>
+        </div>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-8">
-        
-        {/* 1. BRANCH SELECTOR */}
-        <div className="space-y-4">
-          <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-            Select Branch
-          </label>
-          <div className="relative group">
-            <select 
-              name="branch" 
-              value={selectedBranch} 
-              onChange={(e) => setSelectedBranch(e.target.value)} 
-              className="w-full appearance-none bg-slate-50 border border-slate-200 text-slate-900 font-bold text-sm rounded-xl px-4 py-4 outline-none focus:ring-2 focus:ring-rose-500 focus:border-rose-500 cursor-pointer hover:bg-slate-100 transition-all shadow-sm"
-            >
-              {BRANCHES.map(b => <option key={b} value={b}>{b}</option>)}
-            </select>
-            <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none group-hover:text-slate-600 transition-colors" />
-          </div>
+      {/* 2. CUSTOM CALENDAR */}
+      <div className="space-y-2">
+         <label className="text-slate-900 font-bold text-sm uppercase tracking-wide flex justify-between items-center">
+            <span>Select Date</span>
+            <span className="text-xs text-rose-500 normal-case">{selectedDate || 'No date selected'}</span>
+         </label>
+         
+         <div className="border border-slate-200 rounded-xl p-4 bg-white">
+            {/* Header */}
+            <div className="flex justify-between items-center mb-4">
+               <button type="button" onClick={prevMonth} className="p-1 hover:bg-slate-100 rounded-full"><ChevronLeft className="w-5 h-5 text-slate-400" /></button>
+               <span className="font-bold text-slate-800">{monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}</span>
+               <button type="button" onClick={nextMonth} className="p-1 hover:bg-slate-100 rounded-full"><ChevronRight className="w-5 h-5 text-slate-400" /></button>
+            </div>
 
-           {/* Mobile-Only Helper Text */}
-           <p className="md:hidden text-xs text-slate-400 leading-relaxed">
-             Please ensure you select the correct branch before proceeding.
-           </p>
-        </div>
-
-        {/* 2. CUSTOM CALENDAR */}
-        <div className="space-y-4">
-          <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-            Select Date
-          </label>
-          
-          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+            {/* Grid Header - FIXED KEY HERE */}
+            <div className="grid grid-cols-7 gap-1 text-center mb-2">
+               {['S','M','T','W','T','F','S'].map((d, i) => (
+                 <span key={i} className="text-[10px] font-bold text-slate-400">{d}</span>
+               ))}
+            </div>
             
-            {/* Calendar Header */}
-            <div className="flex items-center justify-between mb-4">
-              <h4 className="text-slate-900 font-bold text-sm flex items-center gap-2">
-                <CalendarIcon className="w-4 h-4 text-rose-500" />
-                {format(currentMonth, 'MMMM yyyy')}
-              </h4>
-              <div className="flex gap-1">
-                <button 
-                  type="button" 
-                  onClick={handlePrevMonth}
-                  className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-colors"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <button 
-                  type="button" 
-                  onClick={handleNextMonth}
-                  className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-colors"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            {/* Days Header */}
-            <div className="grid grid-cols-7 mb-2 text-center">
-              {weekDays.map(day => (
-                <div key={day} className="text-[10px] font-bold text-slate-400 uppercase">
-                  {day}
-                </div>
-              ))}
-            </div>
-
-            {/* Days Grid */}
+            {/* Grid Days */}
             <div className="grid grid-cols-7 gap-1">
-              {calendarDays.map((day, idx) => {
-                const isSelected = selectedDate ? isSameDay(day, parseISO(selectedDate)) : false;
-                const isToday = isSameDay(day, new Date());
-                const isCurrentMonth = isSameMonth(day, currentMonth);
-                const isDisabled = isBefore(day, minDateObj);
+              {days.map((day, idx) => {
+                if (!day) return <div key={idx} />; 
+                
+                const d = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+                const offset = d.getTimezoneOffset(); 
+                const dateStr = new Date(d.getTime() - (offset*60*1000)).toISOString().split('T')[0];
+                
+                const isSelected = selectedDate === dateStr;
+                const isDisabled = dateStr < minDate;
 
                 return (
                   <button
-                    key={day.toString()}
+                    key={idx}
                     type="button"
-                    onClick={() => onDateClick(day)}
                     disabled={isDisabled}
+                    onClick={() => handleDateClick(day)}
                     className={`
-                      h-9 w-full rounded-lg text-xs font-semibold flex items-center justify-center transition-all duration-200 relative
-                      ${!isCurrentMonth ? 'text-slate-300' : 'text-slate-700'}
-                      ${isDisabled ? 'opacity-30 cursor-not-allowed' : 'hover:bg-slate-100 cursor-pointer'}
-                      ${isSelected ? 'bg-rose-500 text-white shadow-md shadow-rose-200 hover:bg-rose-600 !opacity-100' : ''}
-                      ${isToday && !isSelected ? 'text-rose-500 font-extrabold bg-rose-50' : ''}
+                      h-10 w-10 rounded-full flex items-center justify-center text-sm font-bold transition-all
+                      ${isSelected ? 'bg-rose-500 text-white shadow-md shadow-rose-200' : ''}
+                      ${!isSelected && !isDisabled ? 'text-slate-700 hover:bg-rose-50 hover:text-rose-600' : ''}
+                      ${isDisabled ? 'text-slate-300 cursor-not-allowed' : ''}
                     `}
                   >
-                    {format(day, 'd')}
+                    {day}
                   </button>
                 );
               })}
             </div>
-
-          </div>
-        </div>
-
+         </div>
       </div>
     </div>
   );
