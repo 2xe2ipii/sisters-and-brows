@@ -37,9 +37,8 @@ export default function GuestForm() {
         </div>
       </div>
 
-      {/* NEW SECTION: ACK + MOP */}
+      {/* ACK & MOP Selection */}
       <div className="grid grid-cols-2 gap-4">
-        {/* After Care Kit */}
         <div className="space-y-1.5">
           <label className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
              <Package className="w-3 h-3" /> After Care Kit
@@ -55,7 +54,6 @@ export default function GuestForm() {
           </div>
         </div>
 
-        {/* Mode of Payment */}
         <div className="space-y-1.5">
           <label className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
              <CreditCard className="w-3 h-3" /> Mode of Payment
