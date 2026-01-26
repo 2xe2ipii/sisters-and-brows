@@ -71,6 +71,9 @@ export default function BookingForm() {
         fbLink: formData.get('fbLink'),
         session: formData.get('session'),
         others: formData.get('others'),
+        // --- ADDED ---
+        ack: formData.get('ack'),
+        mop: formData.get('mop'),
       };
       setReviewData(data);
       setStep('REVIEW');

@@ -1,7 +1,10 @@
-import { Check, MapPin, Calendar, Clock, CreditCard } from 'lucide-react';
+import { Check, MapPin, Calendar, CreditCard, Scissors } from 'lucide-react';
 
 export default function Ticket({ data }: { data: any }) {
   if (!data) return null;
+
+  // Ensure services is always an array for rendering
+  const servicesList = Array.isArray(data.services) ? data.services : [data.services];
 
   return (
     <div className="min-h-[80vh] w-full flex flex-col items-center justify-center p-4">
@@ -53,14 +56,36 @@ export default function Ticket({ data }: { data: any }) {
              </div>
           </div>
 
+          {/* NEW: Services Section */}
+          <div className="flex items-start gap-4">
+             <div className="p-2 bg-rose-50/50 rounded-lg shrink-0">
+               <Scissors className="w-5 h-5 text-rose-400" />
+             </div>
+             <div>
+               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Services</p>
+               <div className="flex flex-col gap-0.5">
+                 {servicesList.map((service: string, index: number) => (
+                   <p key={index} className="text-sm font-bold text-slate-900 leading-tight">
+                     {service}
+                   </p>
+                 ))}
+               </div>
+             </div>
+          </div>
+
+          {/* Payment & ACK Section */}
           <div className="flex items-start gap-4">
              <div className="p-2 bg-rose-50/50 rounded-lg shrink-0">
                <CreditCard className="w-5 h-5 text-rose-400" />
              </div>
              <div>
-               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Payment</p>
+               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Payment & Extras</p>
                <p className="text-sm font-bold text-slate-900 capitalize">
-                  {data.mop} <span className="text-slate-300 mx-1">•</span> {data.ack}
+                  {data.mop} 
+                  <span className="text-slate-300 mx-1">•</span> 
+                  <span className={data.ack === 'ACK' ? 'text-rose-500' : 'text-slate-400'}>
+                    {data.ack === 'ACK' ? 'With Kit' : 'No Kit'}
+                  </span>
                </p>
              </div>
           </div>

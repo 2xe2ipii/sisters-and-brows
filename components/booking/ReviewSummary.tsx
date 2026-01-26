@@ -6,7 +6,8 @@ import {
   Scissors, 
   FileText, 
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  CreditCard // Import CreditCard icon
 } from 'lucide-react';
 
 interface ReviewSummaryProps {
@@ -81,6 +82,20 @@ export default function ReviewSummary({ data, isPending, success, message }: Rev
                    Session: {data.session}
                  </p>
                )}
+             </div>
+          </div>
+
+          <div className="px-6 py-4 flex items-start gap-4">
+             <div className="mt-0.5 text-slate-400"><CreditCard className="w-5 h-5" /></div>
+             <div>
+               <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Payment & Extras</p>
+               <div className="flex items-center gap-3 mt-1 text-slate-900 font-semibold">
+                 <span className="capitalize">{data.mop}</span>
+                 <span className="text-slate-300">|</span>
+                 <span className={data.ack === 'ACK' ? 'text-rose-500' : 'text-slate-500'}>
+                    {data.ack === 'ACK' ? 'With After Care Kit' : 'No After Care Kit'}
+                 </span>
+               </div>
              </div>
           </div>
 

@@ -17,6 +17,7 @@ const BRANCH_LIMITS: Record<string, number> = {
   "PQ": 4, "LP": 4, "SP": 2, "NV": 4, "DM": 6, "TG": 4
 };
 
+// --- UPDATED SCHEMA (With ACK & MOP) ---
 const formSchema = z.object({
   type: z.string().optional(),
   branch: z.string().min(1),
@@ -29,8 +30,8 @@ const formSchema = z.object({
   lastName: z.string().min(1),
   phone: z.string().min(1),
   others: z.string().optional(),
-  ack: z.enum(["ACK", "NO ACK"]),
-  mop: z.enum(["cash", "g-cash", "maya", "bank", "other"])
+  ack: z.enum(["ACK", "NO ACK"]), 
+  mop: z.enum(["Cash", "G-Cash", "Maya", "Bank", "Other"])
 });
 
 // --- HELPERS ---
@@ -141,6 +142,7 @@ export async function submitBooking(prevState: any, formData: FormData) {
   const servicesRaw = formData.getAll('services');
   const servicesString = servicesRaw.map(s => String(s)).join(', ');
 
+  // 1. EXTRACT DATA WITH NEW FIELDS
   const rawData = {
     type: formData.get('type') || "New Appointment", 
     branch: formData.get('branch') || "",
@@ -154,7 +156,7 @@ export async function submitBooking(prevState: any, formData: FormData) {
     phone: formData.get('phone') || "",
     others: formData.get('others') || "",
     ack: formData.get('ack') || "NO ACK",
-    mop: formData.get('mop') || "cash",
+    mop: formData.get('mop') || "Cash",        // Default to cash
   };
 
   const validated = formSchema.safeParse(rawData);
@@ -166,11 +168,11 @@ export async function submitBooking(prevState: any, formData: FormData) {
     
     if (!sheet) throw new Error("Database Sheet Missing");
     
-    // 1. FORCE LOAD HEADERS
+    // 2. FORCE LOAD HEADERS
     if (!sheet.headerValues) await sheet.loadHeaderRow();
     const headers = sheet.headerValues;
 
-    // 2. PREPARE DATA
+    // 3. PREPARE DATA
     const targetDate = normalizeDate(data.date);
     const shortBranch = BRANCH_MAP[data.branch] || data.branch;
     const targetShortBranch = normalizeStr(shortBranch);
@@ -180,8 +182,9 @@ export async function submitBooking(prevState: any, formData: FormData) {
     const limit = BRANCH_LIMITS[shortBranch] || 4;
     const displayTime = data.time.split(' - ')[0].trim();
 
-    // 3. DEFINE DESIRED DATA (We will only write what matches)
-    // The keys here correspond to your CSV headers roughly
+    // 4. DEFINE DESIRED DATA (Exact Header Mapping)
+    // Keys here must match the conceptual headers. 
+    // findColumnKey will map them to the actual sheet headers (e.g. "ACK?" or "M O P")
     const desiredData: Record<string, string> = {
       "BRANCH": shortBranch,
       "FACEBOOK NAME": data.fbLink || "",
@@ -193,13 +196,13 @@ export async function submitBooking(prevState: any, formData: FormData) {
       "SERVICES": servicesString,
       "SESSION": data.session,
       "STATUS": "Pending",
-      "ACK?": data.ack,
-      "M O P": data.mop,        // We try "M O P"
+      "ACK?": data.ack,         // Maps to "ACK?" header
+      "M O P": data.mop,        // Maps to "M O P" header
       "REMARKS": data.others || "",
       "TYPE": data.type || ""
     };
 
-    // 4. CHECK AVAILABILITY LOOP
+    // 5. CHECK AVAILABILITY LOOP
     // Resolve Keys for Reading
     const KEY_BRANCH = findColumnKey(headers, "BRANCH");
     const KEY_DATE = findColumnKey(headers, "DATE");
@@ -226,6 +229,7 @@ export async function submitBooking(prevState: any, formData: FormData) {
           if (isSameBranch && isSameDate && isSameTime) slotCount++;
 
           if (rPhone === targetPhone) {
+            // Update logic (Reschedule or same slot update)
             if (data.type === 'Reschedule') {
               targetRowIndex = i;
               isMovingSlots = true; 
@@ -245,18 +249,18 @@ export async function submitBooking(prevState: any, formData: FormData) {
       };
     }
 
-    // 5. CONSTRUCT SAFE PAYLOAD (Only include keys that exist in headers)
+    // 6. CONSTRUCT SAFE PAYLOAD
     const rowPayload: Record<string, any> = {};
     
     // For each desired field, check if its column exists in the sheet
     Object.entries(desiredData).forEach(([key, value]) => {
       const actualHeader = findColumnKey(headers, key);
       if (actualHeader) {
-        rowPayload[actualHeader] = value; // Write only if column exists
+        rowPayload[actualHeader] = value;
       }
     });
 
-    // 6. WRITE
+    // 7. WRITE TO SHEET
     if (targetRowIndex !== -1 && rows) {
       const row = rows[targetRowIndex];
       row.assign(rowPayload);

@@ -1,4 +1,4 @@
-import { User, Phone, MessageSquare, Link as LinkIcon } from 'lucide-react';
+import { User, Phone, MessageSquare, Link as LinkIcon, Package, CreditCard } from 'lucide-react';
 
 export default function GuestForm() {
   return (
@@ -19,7 +19,7 @@ export default function GuestForm() {
         </div>
       </div>
 
-      {/* Mobile Number - Helper text removed, validation kept */}
+      {/* Mobile Number */}
       <div className="space-y-1.5">
         <label className="text-[10px] font-bold text-slate-400 uppercase">Mobile Number</label>
         <div className="relative max-w-[14rem]">
@@ -37,7 +37,45 @@ export default function GuestForm() {
         </div>
       </div>
 
-      {/* Facebook Profile - RESTORED */}
+      {/* NEW SECTION: ACK + MOP */}
+      <div className="grid grid-cols-2 gap-4">
+        {/* After Care Kit */}
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
+             <Package className="w-3 h-3" /> After Care Kit
+          </label>
+          <div className="relative">
+             <select name="ack" className="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-rose-400 outline-none appearance-none cursor-pointer">
+               <option value="NO ACK">No (Standard)</option>
+               <option value="ACK">Yes (+Kit)</option>
+             </select>
+             <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+             </div>
+          </div>
+        </div>
+
+        {/* Mode of Payment */}
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
+             <CreditCard className="w-3 h-3" /> Mode of Payment
+          </label>
+          <div className="relative">
+             <select name="mop" className="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-rose-400 outline-none appearance-none cursor-pointer">
+               <option value="Cash">Cash</option>
+               <option value="G-Cash">GCash</option>
+               <option value="Maya">Maya</option>
+               <option value="Bank">Bank Transfer</option>
+               <option value="Other">Other</option>
+             </select>
+             <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Facebook Profile */}
       <div className="space-y-1.5">
         <label className="text-[10px] font-bold text-slate-400 uppercase">Facebook Profile <span className="text-slate-300 font-normal normal-case">(Optional)</span></label>
         <div className="relative">
@@ -46,7 +84,7 @@ export default function GuestForm() {
         </div>
       </div>
 
-      {/* Notes - Enlarged */}
+      {/* Notes */}
       <div className="space-y-1.5 pt-2">
         <label className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-2">
           Notes / Remarks <span className="text-slate-300 font-normal normal-case">(Optional)</span>
