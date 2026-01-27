@@ -52,11 +52,19 @@ function normalizeStr(str: any) { return String(str).trim().toLowerCase(); }
 
 function normalizeDate(raw: any) {
   if (!raw) return "";
+  
+  // 1. Convert to string and clean aggressively (remove extra spaces)
   let str = String(raw).trim();
   
-  // FIX: Allow hyphens or spaces (e.g., "Jan-30" or "Jan 30")
-  if (/^[A-Za-z]+[\s-]\d{1,2}$/.test(str)) {
-     str = str.replace('-', ' ') + ` ${new Date().getFullYear()}`; 
+  // 2. Handle "Jan-28" or "Jan 28"
+  // We match Alphabets + Separator + Digits
+  const match = str.match(/^([A-Za-z]+)[\s-]?(\d{1,2})$/);
+  
+  if (match) {
+    // Force current year to ensure match
+    const month = match[1];
+    const day = match[2];
+    str = `${month} ${day} ${new Date().getFullYear()}`;
   }
   
   const d = new Date(str);
@@ -66,7 +74,6 @@ function normalizeDate(raw: any) {
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   
-  // Ensure we compare YYYY-MM-DD
   return `${year}-${month}-${day}`;
 }
 
