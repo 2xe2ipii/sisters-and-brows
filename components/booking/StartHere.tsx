@@ -51,19 +51,20 @@ export default function StartHere({
         <div className="animate-in fade-in slide-in-from-top-2 space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
           <p className="text-xs text-slate-500 font-medium">Enter your Reference Code to retrieve your booking.</p>
           
-          <div className="flex flex-col sm:flex-row gap-2 w-full">
+          {/* 75% Input | 25% Button Grid Layout */}
+          <div className="grid grid-cols-[3fr_1fr] gap-3 w-full">
              <input 
                type="text" 
-               placeholder="REFERENCE CODE"
+               placeholder="e.g. R-8K2P9"
                value={refCode}
                onChange={(e) => setRefCode(e.target.value)}
-               className="flex-1 min-w-0 h-16 border border-slate-300 rounded-xl px-6 text-lg font-bold uppercase text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#e6c200] focus:border-transparent placeholder:text-slate-300"
+               className="min-w-0 w-full h-16 border border-slate-300 rounded-xl px-4 sm:px-6 text-lg font-bold uppercase text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#e6c200] focus:border-transparent placeholder:text-slate-300 placeholder:normal-case transition-all"
              />
              <button 
                type="button" 
                onClick={onLookup}
                disabled={!refCode || lookupLoading}
-               className="h-16 bg-[#202124] text-[#e6c200] px-8 rounded-xl text-base font-bold hover:bg-black disabled:opacity-50 flex items-center justify-center gap-2 shrink-0 transition-colors shadow-sm"
+               className="w-full h-16 bg-[#202124] text-[#e6c200] rounded-xl text-base font-bold hover:bg-black disabled:opacity-50 flex items-center justify-center gap-2 transition-colors shadow-sm"
              >
                {lookupLoading ? <Loader2 className="w-5 h-5 animate-spin text-[#e6c200]"/> : <Search className="w-5 h-5 text-[#e6c200]" />}
                Find
