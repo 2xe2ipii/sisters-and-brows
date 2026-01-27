@@ -1,121 +1,107 @@
-import { Check, MapPin, Calendar, CreditCard, Scissors, Receipt } from 'lucide-react';
+import { Check, MapPin, Calendar, RotateCcw, Copy, User } from 'lucide-react';
 
 export default function Ticket({ data }: { data: any }) {
   if (!data) return null;
+  
+  const isReschedule = data.type === 'Reschedule';
+  const refCode = Math.random().toString(36).substr(2, 6).toUpperCase();
 
-  // Ensure services is always an array for rendering
-  const servicesList = Array.isArray(data.services) ? data.services : [data.services];
+  // Date Formatter: "2026-01-29" -> "Jan 29, 2026"
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
 
   return (
-    <div className="min-h-[80vh] w-full flex flex-col items-center justify-center p-4">
+    <div className="min-h-[85vh] w-full flex flex-col items-center justify-center p-6">
       
-      {/* Main Ticket Card */}
-      <div className="w-full max-w-sm bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-100 relative">
-        
-        {/* Pink Top Accent */}
-        <div className="h-1.5 w-full bg-rose-400" />
-
-        {/* Success Header */}
-        <div className="pt-8 pb-6 px-8 text-center bg-white">
-          <div className="mx-auto w-14 h-14 bg-rose-50 rounded-full flex items-center justify-center mb-4 ring-4 ring-white shadow-sm">
-             <Check className="w-7 h-7 text-rose-500" />
-          </div>
-          <h1 className="text-xl font-bold text-slate-900">Booking Confirmed!</h1>
-          <p className="text-slate-400 text-xs mt-1 uppercase tracking-wide">We'll see you soon</p>
+      {/* Success Header */}
+      <div className="text-center mb-10 animate-in slide-in-from-bottom-8 duration-700 delay-100">
+        <div className={`mx-auto w-16 h-16 rounded-full flex items-center justify-center mb-4 shadow-xl ring-8 ring-white ${isReschedule ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600'}`}>
+          {isReschedule ? <RotateCcw className="w-8 h-8" /> : <Check className="w-8 h-8" />}
         </div>
-
-        {/* Dotted Divider */}
-        <div className="relative w-full h-4 bg-white">
-           <div className="absolute left-0 top-1/2 -translate-y-1/2 w-3 h-6 bg-slate-50 rounded-r-full" />
-           <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-6 bg-slate-50 rounded-l-full" />
-           <div className="absolute top-1/2 left-4 right-4 border-t-2 border-dashed border-slate-100" />
-        </div>
-
-        {/* Details Section */}
-        <div className="p-8 space-y-5 bg-white">
-          
-          {/* Booking Type (NEW) */}
-          <div className="flex items-start gap-4 pb-5 border-b border-dashed border-slate-100">
-             <div className="p-2 bg-amber-50 rounded-lg shrink-0">
-               <Receipt className="w-5 h-5 text-amber-500" />
-             </div>
-             <div>
-               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Booking Type</p>
-               <span className={`text-sm font-bold px-2 py-0.5 rounded-md ${data.type === 'Reschedule' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-700'}`}>
-                 {data.type || "New Appointment"}
-               </span>
-             </div>
-          </div>
-
-          <div className="flex items-start gap-4">
-             <div className="p-2 bg-rose-50/50 rounded-lg shrink-0">
-               <Calendar className="w-5 h-5 text-rose-400" />
-             </div>
-             <div>
-               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Date & Time</p>
-               <p className="text-sm font-bold text-slate-900">
-                 {data.date} <span className="text-slate-300 mx-1">|</span> {data.time?.split('-')[0]}
-               </p>
-             </div>
-          </div>
-
-          <div className="flex items-start gap-4">
-             <div className="p-2 bg-rose-50/50 rounded-lg shrink-0">
-               <MapPin className="w-5 h-5 text-rose-400" />
-             </div>
-             <div>
-               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Branch</p>
-               <p className="text-sm font-bold text-slate-900">{data.branch}</p>
-             </div>
-          </div>
-
-          <div className="flex items-start gap-4">
-             <div className="p-2 bg-rose-50/50 rounded-lg shrink-0">
-               <Scissors className="w-5 h-5 text-rose-400" />
-             </div>
-             <div>
-               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Services</p>
-               <div className="flex flex-col gap-0.5">
-                 {servicesList.map((service: string, index: number) => (
-                   <p key={index} className="text-sm font-bold text-slate-900 leading-tight">
-                     {service}
-                   </p>
-                 ))}
-               </div>
-             </div>
-          </div>
-
-          <div className="flex items-start gap-4">
-             <div className="p-2 bg-rose-50/50 rounded-lg shrink-0">
-               <CreditCard className="w-5 h-5 text-rose-400" />
-             </div>
-             <div>
-               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Payment & Extras</p>
-               <p className="text-sm font-bold text-slate-900 capitalize">
-                  {data.mop} 
-                  <span className="text-slate-300 mx-1">•</span> 
-                  <span className={data.ack === 'ACK' ? 'text-rose-500' : 'text-slate-400'}>
-                    {data.ack === 'ACK' ? 'With Kit' : 'No Kit'}
-                  </span>
-               </p>
-             </div>
-          </div>
-
-        </div>
-
-        {/* Footer / Reference Code */}
-        <div className="bg-slate-50 p-4 text-center border-t border-slate-100">
-          <p className="text-[10px] text-slate-400 uppercase tracking-widest mb-1">Reference Code</p>
-          <p className="font-mono text-lg font-bold text-slate-800 tracking-widest">
-            {Math.random().toString(36).substr(2, 6).toUpperCase()}
-          </p>
-        </div>
+        <h1 className="text-3xl font-serif text-slate-900 tracking-tight">{isReschedule ? 'Rescheduled' : 'Confirmed'}</h1>
+        <p className="text-slate-500 font-medium mt-2">Your booking has been saved.</p>
       </div>
 
-      {/* Action Button (New Dark Style) */}
+      {/* Ticket Card */}
+      <div className="w-full max-w-sm bg-white rounded-3xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] overflow-hidden relative animate-in zoom-in-95 duration-500 border border-slate-100">
+        
+        {/* Status Bar */}
+        <div className={`h-3 w-full ${isReschedule ? 'bg-amber-500' : 'bg-slate-900'}`} />
+
+        {/* Ticket Body */}
+        <div className="p-10 space-y-8">
+          
+          {/* Main Time & Date */}
+          <div className="text-center">
+             <h2 className="text-4xl font-black text-slate-900 tracking-tight">{data.time?.split('-')[0]}</h2>
+             <div className="inline-flex items-center gap-2 mt-2 px-4 py-1.5 bg-slate-50 rounded-full">
+               <Calendar className="w-3.5 h-3.5 text-slate-400" />
+               <p className="text-slate-600 font-bold text-sm uppercase tracking-wider">{formatDate(data.date)}</p>
+             </div>
+          </div>
+
+          {/* Dashed Line */}
+          <div className="w-full border-t-2 border-dashed border-slate-100"></div>
+
+          {/* Details */}
+          <div className="space-y-6">
+             
+             {/* Booking For */}
+             <div className="flex justify-between items-end">
+               <div className="flex items-center gap-2 mb-1">
+                 <User className="w-4 h-4 text-slate-400" />
+                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Guest</span>
+               </div>
+               <span className="text-base font-bold text-slate-900">{data.firstName} {data.lastName}</span>
+             </div>
+
+             {/* Location */}
+             <div className="flex justify-between items-end">
+               <div className="flex items-center gap-2 mb-1">
+                 <MapPin className="w-4 h-4 text-slate-400" />
+                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Location</span>
+               </div>
+               <span className="text-base font-bold text-slate-900 text-right">{data.branch}</span>
+             </div>
+
+             {/* Services */}
+             <div className="flex flex-col gap-2">
+               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Services</span>
+               <div className="flex flex-wrap justify-end gap-1.5">
+                  {Array.isArray(data.services) ? data.services.map((s:string, i:number) => (
+                    <span key={i} className="px-2 py-1 bg-slate-50 border border-slate-100 rounded text-xs font-bold text-slate-700">{s}</span>
+                  )) : <span className="text-sm font-bold text-slate-900">{data.services}</span>}
+               </div>
+             </div>
+             
+          </div>
+
+          {/* Ref Code Area */}
+          <div className="bg-slate-50 rounded-2xl p-5 flex justify-between items-center border border-slate-100">
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Reference Code</p>
+              <p className="font-mono text-xl font-bold text-slate-900 tracking-widest">{refCode}</p>
+            </div>
+            <button className="p-2 bg-white rounded-xl text-slate-400 hover:text-slate-900 hover:shadow-sm transition-all border border-slate-200">
+              <Copy className="w-5 h-5" />
+            </button>
+          </div>
+
+        </div>
+
+        {/* Decorative Cutouts */}
+        <div className="absolute top-[160px] -left-3 w-6 h-6 bg-[#fafafa] rounded-full"></div>
+        <div className="absolute top-[160px] -right-3 w-6 h-6 bg-[#fafafa] rounded-full"></div>
+
+      </div>
+
+      {/* Action */}
       <button 
         onClick={() => window.location.reload()}
-        className="mt-8 px-8 py-3 rounded-xl text-sm font-bold text-white bg-slate-900 shadow-lg shadow-slate-200 hover:scale-105 active:scale-95 transition-all"
+        className="mt-10 px-8 py-3 rounded-full text-sm font-bold text-slate-500 hover:text-slate-900 hover:bg-white hover:shadow-lg hover:-translate-y-0.5 transition-all"
       >
         Book Another Appointment
       </button>
