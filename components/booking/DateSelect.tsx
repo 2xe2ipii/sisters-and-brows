@@ -24,8 +24,14 @@ export default function DateSelect({ selected, onSelect, minDate }: DateSelectPr
     return days;
   }, [currentMonth]);
 
-  const handlePrev = () => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
-  const handleNext = () => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
+  const weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+  const handlePrev = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
+  };
+  const handleNext = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
+  };
 
   const isDateDisabled = (date: Date) => {
     const min = new Date(minDate);
@@ -35,6 +41,14 @@ export default function DateSelect({ selected, onSelect, minDate }: DateSelectPr
     return d < min;
   };
 
+  const isSameDay = (d1: Date, d2Str: string) => {
+    if (!d2Str) return false;
+    const d2 = new Date(d2Str);
+    return d1.getDate() === d2.getDate() && 
+           d1.getMonth() === d2.getMonth() && 
+           d1.getFullYear() === d2.getFullYear();
+  };
+
   const formatDateValue = (date: Date) => {
     const offset = date.getTimezoneOffset();
     const d = new Date(date.getTime() - (offset*60*1000));
@@ -42,40 +56,49 @@ export default function DateSelect({ selected, onSelect, minDate }: DateSelectPr
   };
 
   return (
-    <SectionContainer title="Select Date" icon={<CalendarIcon className="w-4 h-4 text-[#e6c200]" />}>
+    <SectionContainer 
+      title="Select Date" 
+      icon={<CalendarIcon className="w-4 h-4 text-[#e6c200]" />}
+    >
       <div className="select-none">
-        {/* Calendar Header */}
-        <div className="flex items-center justify-between mb-4">
-           <button type="button" onClick={handlePrev} className="p-1 hover:bg-slate-100 rounded-lg"><ChevronLeft className="w-5 h-5 text-slate-600"/></button>
-           <span className="text-sm font-black uppercase tracking-wider text-slate-800">
+        <div className="flex items-center justify-between mb-4 px-2">
+           <button type="button" onClick={handlePrev} className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600">
+             <ChevronLeft className="w-5 h-5" />
+           </button>
+           <span className="text-sm font-bold text-slate-800">
              {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
            </span>
-           <button type="button" onClick={handleNext} className="p-1 hover:bg-slate-100 rounded-lg"><ChevronRight className="w-5 h-5 text-slate-600"/></button>
+           <button type="button" onClick={handleNext} className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600">
+             <ChevronRight className="w-5 h-5" />
+           </button>
         </div>
 
-        {/* Days Grid */}
-        <div className="grid grid-cols-7 gap-1 text-center mb-2">
-           {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(d => (
+        <div className="grid grid-cols-7 text-center mb-2">
+          {weekDays.map(d => (
              <span key={d} className="text-[10px] font-bold text-slate-400 uppercase">{d}</span>
-           ))}
+          ))}
         </div>
+
         <div className="grid grid-cols-7 gap-1">
-           {Array(daysInMonth[0].getDay()).fill(null).map((_, i) => <div key={`empty-${i}`} />)}
-           {daysInMonth.map((date) => {
-             const val = formatDateValue(date);
-             const isDisabled = isDateDisabled(date);
-             const isSelected = selected === val;
+           {Array(currentMonth.getDay()).fill(null).map((_, i) => <div key={`empty-${i}`} />)}
+           
+           {daysInMonth.map((date, i) => {
+             const disabled = isDateDisabled(date);
+             const isSelected = isSameDay(date, selected);
              return (
                <button
-                 key={val}
+                 key={i}
                  type="button"
-                 disabled={isDisabled}
-                 onClick={() => onSelect(val)}
+                 disabled={disabled}
+                 onClick={() => onSelect(formatDateValue(date))}
                  className={`
-                   h-10 rounded-lg text-sm font-bold transition-all
-                   ${isDisabled ? 'text-slate-300 cursor-not-allowed' : 'hover:bg-slate-100'}
-                   ${isSelected ? 'bg-[#202124] text-[#e6c200] hover:bg-[#202124]' : ''}
-                   ${!isDisabled && !isSelected ? 'text-slate-700' : ''}
+                   aspect-square flex items-center justify-center rounded-lg text-xs font-bold transition-all
+                   ${isSelected 
+                     ? 'bg-[#202124] text-white shadow-md' 
+                     : disabled 
+                        ? 'text-slate-300 cursor-not-allowed' 
+                        : 'text-slate-700 hover:bg-slate-100'
+                   }
                  `}
                >
                  {date.getDate()}

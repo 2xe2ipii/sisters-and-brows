@@ -2,10 +2,10 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import Image from 'next/image';
-import { Scissors, CheckCircle2 } from 'lucide-react';
+import { CheckCircle2 } from 'lucide-react';
 import { fetchServices } from '@/app/actions';
 
-// --- FALLBACK DATA (Prevents empty screen) ---
+// --- FALLBACK DATA ---
 const DEFAULT_SERVICES = [
   { id: 'bundle-a', name: 'Bundle A', price: '₱3,999', category: 'Bundles', image: '/bundleA_3999.jpg', desc: 'Premium value package' },
   { id: 'bundle-b', name: 'Bundle B', price: '₱4,999', category: 'Bundles', image: '/bundleB_4999.jpg', desc: 'Complete brow & care package' },
@@ -60,18 +60,9 @@ export default function ServiceList({ onNext, onBack }: { onNext?: () => void, o
   }, [activeCategory, servicesData]);
 
   return (
-    <div className={`space-y-6 animate-in fade-in slide-in-from-right-8 duration-500 ${onNext ? 'pb-20' : ''}`}>
+    <div className={`space-y-4 animate-in fade-in slide-in-from-right-8 duration-500 ${onNext ? 'pb-20' : ''}`}>
       
-      <div className="px-1">
-        <h2 className="text-xl font-extrabold text-slate-900 flex items-center gap-2">
-          <Scissors className="w-5 h-5 text-rose-500" />
-          Choose Treatments
-        </h2>
-        <p className="text-sm text-slate-500 mt-1">
-          Tap images to select multiple services.
-        </p>
-      </div>
-
+      {/* Category Chips */}
       <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-2 px-2 sticky top-0 bg-[#f8fafc] z-10 py-2">
         {CATEGORIES.map(cat => (
           <button
@@ -107,15 +98,16 @@ export default function ServiceList({ onNext, onBack }: { onNext?: () => void, o
                 }
               `}
             >
-              <div className="relative aspect-[3/4] w-full bg-slate-100 p-2">
+              {/* Square Image Container */}
+              <div className="relative aspect-square w-full bg-slate-100">
                 <Image 
-                  // FIX: Ensure src is never empty
                   src={service.image || '/bundleA_3999.jpg'} 
                   alt={service.name || 'Service Image'}
                   fill
-                  className={`object-contain transition-all duration-300 mix-blend-multiply ${isSelected ? 'opacity-90 scale-95' : 'opacity-100'}`}
+                  className={`object-cover transition-all duration-300 ${isSelected ? 'opacity-90' : 'opacity-100'}`}
                 />
                 
+                {/* Selection Checkmark */}
                 <div className={`
                   absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center transition-all duration-300 shadow-sm z-10
                   ${isSelected ? 'bg-rose-500 scale-100' : 'bg-white/80 backdrop-blur scale-90 opacity-70'}
@@ -127,11 +119,13 @@ export default function ServiceList({ onNext, onBack }: { onNext?: () => void, o
                   )}
                 </div>
 
+                {/* Price Tag Overlay */}
                 <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/60 backdrop-blur-sm rounded-lg z-10">
                    <p className="text-[10px] font-bold text-white tracking-wide">{service.price}</p>
                 </div>
               </div>
 
+              {/* Info Below Square */}
               <div className="p-3 bg-white border-t border-slate-50 flex-1 flex flex-col justify-between">
                  <div>
                     <h3 className={`font-bold text-xs leading-tight mb-1 ${isSelected ? 'text-rose-600' : 'text-slate-800'}`}>
@@ -147,26 +141,9 @@ export default function ServiceList({ onNext, onBack }: { onNext?: () => void, o
         })}
       </div>
 
-      {/* Pass selected services to form */}
       {selectedServices.map((s, i) => (
         <input key={i} type="hidden" name="services" value={s} />
       ))}
-      
-      {onNext && onBack && (
-        <div className="flex gap-3 pt-4 border-t border-slate-200 mt-4">
-          <button type="button" onClick={onBack} className="flex-1 py-3.5 rounded-xl font-bold text-slate-500 bg-white border border-slate-200 hover:bg-slate-50 transition-colors">
-            Back
-          </button>
-          <button 
-            type="button" 
-            onClick={onNext} 
-            disabled={selectedServices.length === 0}
-            className="flex-[2] py-3.5 rounded-xl font-bold text-white bg-rose-500 shadow-lg shadow-rose-200 hover:bg-rose-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
-          >
-            Continue <span className="text-rose-200 text-xs font-normal">({selectedServices.length})</span>
-          </button>
-        </div>
-      )}
     </div>
   );
 }
