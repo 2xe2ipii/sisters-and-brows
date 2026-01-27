@@ -24,6 +24,7 @@ export default function LocationDate({
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
   // Generate calendar days
+  // review calendar UI
   const daysInMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate();
   const firstDayOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1).getDay();
   

@@ -53,14 +53,20 @@ function normalizeStr(str: any) { return String(str).trim().toLowerCase(); }
 function normalizeDate(raw: any) {
   if (!raw) return "";
   let str = String(raw).trim();
-  if (/^[A-Za-z]+\s\d{1,2}$/.test(str)) {
-     str += ` ${new Date().getFullYear()}`; 
+  
+  // FIX: Allow hyphens or spaces (e.g., "Jan-30" or "Jan 30")
+  if (/^[A-Za-z]+[\s-]\d{1,2}$/.test(str)) {
+     str = str.replace('-', ' ') + ` ${new Date().getFullYear()}`; 
   }
+  
   const d = new Date(str);
   if (isNaN(d.getTime())) return str;
+  
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
+  
+  // Ensure we compare YYYY-MM-DD
   return `${year}-${month}-${day}`;
 }
 
