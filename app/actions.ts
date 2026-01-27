@@ -50,31 +50,46 @@ async function getDynamicConfig() {
 // Data Normalization Helpers
 function normalizeStr(str: any) { return String(str).trim().toLowerCase(); }
 
-function normalizeDate(raw: any) {
+// [FIXED] Now accepts targetYear to align Sheet Data (Jan 28) with Booking Year (2026)
+function normalizeDate(raw: any, targetYear?: number) {
   if (!raw) return "";
   
   // 1. Convert to string and clean aggressively (remove extra spaces)
-  let str = String(raw).trim();
+  let str = String(raw).trim().replace(/-/g, ' '); // Handle "Jan-28" -> "Jan 28"
   
-  // 2. Handle "Jan-28" or "Jan 28"
+  // 2. Handle "Jan 28" pattern
   // We match Alphabets + Separator + Digits
   const match = str.match(/^([A-Za-z]+)[\s-]?(\d{1,2})$/);
   
   if (match) {
-    // Force current year to ensure match
+    // Force year to ensure match (Default to current, or use targetYear if provided)
     const month = match[1];
     const day = match[2];
-    str = `${month} ${day} ${new Date().getFullYear()}`;
+    const yearToUse = targetYear || new Date().getFullYear();
+    str = `${month} ${day} ${yearToUse}`;
   }
   
   const d = new Date(str);
   if (isNaN(d.getTime())) return str;
   
-  const year = d.getFullYear();
+  // If targetYear is provided, OVERRIDE the year (crucial for 2026 bookings vs 2025/2001 defaults)
+  let year = d.getFullYear();
+  if (targetYear) {
+    year = targetYear;
+  }
+
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   
   return `${year}-${month}-${day}`;
+}
+
+// [NEW] Formats YYYY-MM-DD back to "Jan-28" for saving to Sheet
+function normalizeSheetDate(isoDate: string) {
+  if (!isoDate) return "";
+  const d = new Date(isoDate);
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${months[d.getMonth()]}-${d.getDate()}`;
 }
 
 function getCleanTime(timeStr: any) { return String(timeStr).split(' - ')[0].trim().toLowerCase(); }
@@ -109,14 +124,20 @@ export async function getSlotAvailability(date: string, branch: string) {
     const KEY_TIME = findColumnKey(headers, "TIME") || "TIME";
 
     const counts: Record<string, number> = {};
-    const targetDate = normalizeDate(date);
+    
+    // [FIX] Extract year from requested date
+    const requestedDateObj = new Date(date);
+    const targetYear = requestedDateObj.getFullYear();
+
+    const targetDate = normalizeDate(date, targetYear);
     const targetFullBranch = normalizeStr(branch);
     const targetShortBranch = normalizeStr(BRANCH_MAP[branch] || branch);
     const limit = BRANCH_LIMITS[BRANCH_MAP[branch] || branch] || 4;
 
     if (rows) {
       rows.forEach((row) => {
-        const rDate = normalizeDate(row.get(KEY_DATE));
+        // [FIX] Pass targetYear to normalizeDate so Sheet rows (Jan 28) match Booking (2026)
+        const rDate = normalizeDate(row.get(KEY_DATE), targetYear);
         const rBranch = normalizeStr(row.get(KEY_BRANCH));
         const rTime = getCleanTime(row.get(KEY_TIME));
 
@@ -183,11 +204,13 @@ export async function submitBooking(prevState: any, formData: FormData) {
     const headers = sheet.headerValues;
 
     // PREPARE DATA
-    const targetDate = normalizeDate(data.date);
+    const bookingDateObj = new Date(data.date);
+    const targetYear = bookingDateObj.getFullYear();
+
+    const targetDate = normalizeDate(data.date, targetYear);
     const shortBranch = BRANCH_MAP[data.branch] || data.branch;
     const targetShortBranch = normalizeStr(shortBranch);
     const targetFullBranch = normalizeStr(data.branch);
-    const targetTimeClean = getCleanTime(data.time);
     const limit = BRANCH_LIMITS[shortBranch] || 4;
     const displayTime = data.time.split(' - ')[0].trim();
 
@@ -202,7 +225,8 @@ export async function submitBooking(prevState: any, formData: FormData) {
     if (rows && KEY_BRANCH && KEY_DATE && KEY_TIME && KEY_PHONE) {
         for (let i = 0; i < rows.length; i++) {
           const row = rows[i];
-          const rDate = normalizeDate(row.get(KEY_DATE));
+          // [FIX] Pass targetYear here too
+          const rDate = normalizeDate(row.get(KEY_DATE), targetYear);
           const rBranch = normalizeStr(row.get(KEY_BRANCH));
           const rTime = getCleanTime(row.get(KEY_TIME));
 
@@ -227,7 +251,7 @@ export async function submitBooking(prevState: any, formData: FormData) {
       "FACEBOOK NAME": data.fbLink || "",
       "FULL NAME": `${data.firstName} ${data.lastName}`,
       "Contact Number": data.phone,
-      "DATE": targetDate,
+      "DATE": normalizeSheetDate(data.date), // [FIX] Save as "Jan-28" to match your sheet format
       "TIME": displayTime,
       "CLIENT #": "",
       "SERVICES": servicesString,
