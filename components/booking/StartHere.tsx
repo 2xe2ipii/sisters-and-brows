@@ -57,7 +57,7 @@ export default function StartHere({
                  placeholder="Reference Code"
                  value={refCode}
                  onChange={(e) => setRefCode(e.target.value)}
-                 className="flex-1 border border-slate-300 rounded-lg px-4 py-2 text-sm font-bold uppercase text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                 className="flex-1 border border-slate-300 rounded-lg px-4 py-2 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-500"
                />
                <button 
                  type="button" 

@@ -1,38 +1,29 @@
 'use client'
 
 import { useActionState, useState, useEffect, useRef } from 'react';
-import { submitBooking, getSlotAvailability, fetchAppConfig, lookupBooking } from '@/app/actions';
-import { Sparkles, ArrowRight, AlertCircle } from 'lucide-react';
+import { submitBooking, getSlotAvailability, fetchAppConfig, lookupBooking, BookingState } from '@/app/actions';
+import { FileText, Clock, Layers, Scissors, User, Loader2 } from 'lucide-react';
 
+import SectionContainer from './booking/SectionContainer';
 import StartHere from './booking/StartHere';
-import LocationDate from './booking/LocationDate';
+import BranchSelect from './booking/BranchSelect'; // New
+import DateSelect from './booking/DateSelect';     // New
 import TimeSlotGrid from './booking/TimeSlotGrid';
 import SessionSelect from './booking/SessionSelect';
 import ServiceList from './booking/ServiceList';
 import GuestForm from './booking/GuestForm';
-import ReviewSummary from './booking/ReviewSummary';
 import Ticket from './booking/Ticket';
 
-// [FIX] Add refCode to initial state definition
-const initialState = {
-  success: false,
-  message: '',
-  refCode: '' 
-};
+const initialState: BookingState = { success: false, message: '', refCode: '', data: undefined };
 
 export default function BookingForm() {
   const [state, formAction, isPending] = useActionState(submitBooking, initialState);
   const formRef = useRef<HTMLFormElement>(null);
   
-  const [step, setStep] = useState<'FORM' | 'REVIEW'>('FORM');
-  const [reviewData, setReviewData] = useState<any>(null);
-  
-  // --- CONFIG ---
   const [configLoaded, setConfigLoaded] = useState(false);
   const [branches, setBranches] = useState<any[]>([]); 
   const [timeSlots, setTimeSlots] = useState<string[]>([]);
   
-  // --- FORM STATE ---
   const [bookingType, setBookingType] = useState("New Appointment");
   const [refCode, setRefCode] = useState("");
   const [lookupLoading, setLookupLoading] = useState(false);
@@ -46,18 +37,13 @@ export default function BookingForm() {
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [guestData, setGuestData] = useState<any>(null); 
 
-  const [formError, setFormError] = useState("");
-  const today = new Date().toISOString().split('T')[0];
-
   useEffect(() => {
     async function init() {
       const res = await fetchAppConfig();
       if (res.success) {
         setBranches(res.data.branches || []);
         setTimeSlots(res.data.timeSlots || []);
-        if (res.data.branches?.length > 0 && !selectedBranch) {
-            setSelectedBranch(res.data.branches[0].name);
-        }
+        if (res.data.branches?.length > 0 && !selectedBranch) setSelectedBranch(res.data.branches[0].name);
       }
       setConfigLoaded(true);
     }
@@ -71,206 +57,121 @@ export default function BookingForm() {
       try {
         const result = await getSlotAvailability(selectedDate, selectedBranch);
         if (result.success) {
-          setSlotCounts(result.counts);
+          setSlotCounts(result.counts); 
           if (result.limit) setMaxCapacity(result.limit);
         }
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoadingSlots(false);
-      }
+      } catch (e) { console.error(e); } finally { setLoadingSlots(false); }
     }
     fetchSlots();
   }, [selectedDate, selectedBranch, configLoaded]);
 
-  // --- LOOKUP HANDLER ---
   const handleLookup = async () => {
     setLookupLoading(true);
     setLookupMessage("");
     try {
       const res = await lookupBooking(refCode);
       if (res.success && res.data) {
-        setLookupMessage("Booking Found! Details loaded.");
+        setLookupMessage("Booking Found!");
         const d = res.data;
-        // Pre-fill State
         setSelectedBranch(d.branch);
         setSelectedDate(d.date);
-        setSession(d.session || "1ST");
-        setGuestData({
-          firstName: d.firstName,
-          lastName: d.lastName,
-          phone: d.phone,
-          fbLink: d.fbLink,
-        });
+        setSession(d.session);
+        setGuestData(d); // Pre-fill guest data (includes ACK, MOP)
+        // Note: Time and Services must be manually selected in UI if they are radio/checkboxes, 
+        // or we need to pass pre-fill logic to those components. 
+        // For now, GuestForm handles its part. 
+        // We'll let user re-confirm Time/Service to be safe or update states if components support it.
       } else {
         setLookupMessage(res.message || "Not found.");
       }
-    } catch (e) {
-      setLookupMessage("Error searching.");
-    } finally {
-      setLookupLoading(false);
-    }
-  };
-
-  const handleProceed = () => {
-    setFormError("");
-
-    if (!selectedBranch) {
-      setFormError("Please select a branch.");
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      return;
-    }
-    if (!selectedDate) {
-      setFormError("Please select a date for your appointment.");
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      return;
-    }
-
-    if (formRef.current && formRef.current.checkValidity()) {
-      const formData = new FormData(formRef.current);
-      
-      if (session !== 'CONSULTATION') {
-        const services = formData.getAll('services');
-        if (services.length === 0) {
-          setFormError("Please select at least one service.");
-          return;
-        }
-      }
-
-      const data = {
-        type: bookingType, 
-        refCode: refCode, 
-        branch: selectedBranch,
-        date: selectedDate,
-        time: formData.get('time'),
-        services: session === 'CONSULTATION' ? ['Consultation Only'] : formData.getAll('services'),
-        firstName: formData.get('firstName'),
-        lastName: formData.get('lastName'),
-        phone: formData.get('phone'),
-        fbLink: formData.get('fbLink'),
-        session: session, 
-        others: formData.get('others'),
-        ack: formData.get('ack'),
-        mop: formData.get('mop'),
-      };
-      setReviewData(data);
-      setStep('REVIEW');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else {
-      formRef.current?.reportValidity();
-    }
+    } catch (e) { setLookupMessage("Error searching."); } finally { setLookupLoading(false); }
   };
 
   if (state.success) {
-    // [FIX] Pass refCode from state to Ticket
-    return <Ticket data={reviewData || {}} refCode={state.refCode} />;
+    const ticketData = { ...state.data, type: bookingType, session: session };
+    return <Ticket data={ticketData} refCode={state.refCode} />;
   }
 
-  if (!configLoaded) {
-    return <div className="min-h-screen flex items-center justify-center text-slate-400 font-bold">Loading booking system...</div>;
-  }
+  if (!configLoaded) return <div className="min-h-screen flex items-center justify-center text-slate-400 font-bold">Loading...</div>;
 
   return (
     <div className="min-h-screen w-full bg-[#f8fafc] flex flex-col items-center py-12 px-4">
       <div className="w-full max-w-xl space-y-8">
         
-        {step === 'FORM' && (
-          <div className="pl-2 animate-in fade-in slide-in-from-top-4 duration-500">
-              <div className="flex items-center gap-2 text-xs font-bold tracking-widest text-slate-500 uppercase mb-2">
-                 <Sparkles className="w-4 h-4 text-rose-500" /> Official Booking
-              </div>
-              <h1 className="text-4xl font-extrabold text-slate-900 mb-3 tracking-tight">Sisters & Brows</h1>
-              <p className="text-slate-600 leading-relaxed">
-                Premium Aesthetics & Microblading Services.
-              </p>
-          </div>
-        )}
+        {/* HEADER: LOGO & TITLE */}
+        <div className="flex flex-col items-center text-center animate-in fade-in slide-in-from-top-4">
+           <img src="/logo.jpg" alt="Logo" className="w-24 h-24 rounded-full shadow-lg border-4 border-white mb-4 object-cover"/>
+           <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Sisters & Brows</h1>
+           <p className="text-slate-500 text-sm font-medium">Premium Aesthetics & Microblading</p>
+        </div>
 
-        <form ref={formRef} action={formAction} className="space-y-6" noValidate={step === 'REVIEW'}>
+        <form ref={formRef} action={formAction} className="space-y-6">
           
-          {/* ERRORS */}
-          {!state.success && state.message && (
-            <div className="bg-red-50 border border-red-200 text-red-600 p-4 rounded-xl flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
-              <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-              <div className="text-sm font-bold">{state.message}</div>
-            </div>
+          {/* SECTION 1: START HERE */}
+          <SectionContainer title="Start Here" icon={<FileText className="w-4 h-4 text-[#e6c200]"/>}>
+             <StartHere 
+                bookingType={bookingType} setBookingType={setBookingType} 
+                refCode={refCode} setRefCode={setRefCode} 
+                onLookup={handleLookup} lookupLoading={lookupLoading} lookupMessage={lookupMessage}
+             />
+          </SectionContainer>
+
+          {/* SECTION 2: BRANCH */}
+          <BranchSelect branches={branches} selected={selectedBranch} onSelect={setSelectedBranch} />
+          <input type="hidden" name="branch" value={selectedBranch} />
+
+          {/* SECTION 3: DATE */}
+          <DateSelect selected={selectedDate} onSelect={setSelectedDate} minDate={new Date().toISOString().split('T')[0]} />
+          <input type="hidden" name="date" value={selectedDate} />
+
+          {/* SECTION 4: TIME SLOTS */}
+          <SectionContainer title="Available Slots" icon={<Clock className="w-4 h-4 text-[#e6c200]"/>}>
+             <TimeSlotGrid timeSlots={timeSlots} slotCounts={slotCounts} loading={loadingSlots} selectedDate={selectedDate} maxCapacity={maxCapacity} />
+          </SectionContainer>
+
+          {/* SECTION 5: SESSION TYPE */}
+          <SectionContainer title="Session Type" icon={<Layers className="w-4 h-4 text-[#e6c200]"/>}>
+             <SessionSelect selected={session} onSelect={setSession} />
+             <input type="hidden" name="session" value={session} />
+          </SectionContainer>
+
+          {/* SECTION 6: SERVICES */}
+          {session !== 'CONSULTATION' && (
+            <SectionContainer title="Services" icon={<Scissors className="w-4 h-4 text-[#e6c200]"/>}>
+               <ServiceList />
+            </SectionContainer>
           )}
-          {formError && (
-            <div className="bg-amber-50 border border-amber-200 text-amber-700 p-4 rounded-xl flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
-              <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-              <div className="text-sm font-bold">{formError}</div>
-            </div>
-          )}
 
-          <div className={step === 'FORM' ? 'space-y-6 block animate-in fade-in duration-300' : 'hidden'}>
-            
-            <StartHere 
-              bookingType={bookingType} 
-              setBookingType={setBookingType} 
-              refCode={refCode}
-              setRefCode={setRefCode}
-              onLookup={handleLookup}
-              lookupLoading={lookupLoading}
-              lookupMessage={lookupMessage}
-            />
+          {/* SECTION 7: PERSONAL DETAILS (Includes MOP & ACK) */}
+          <SectionContainer title="Personal Details" icon={<User className="w-4 h-4 text-[#e6c200]"/>}>
+             <GuestForm initialData={guestData} />
+          </SectionContainer>
 
-            <LocationDate 
-              branches={branches}
-              selectedBranch={selectedBranch}
-              setSelectedBranch={setSelectedBranch}
-              selectedDate={selectedDate}
-              setSelectedDate={setSelectedDate}
-              minDate={today}
-            />
-            
-            {/* HIDDEN INPUTS */}
-            <input type="hidden" name="branch" value={selectedBranch} />
-            <input type="hidden" name="date" value={selectedDate} />
-            <input type="hidden" name="session" value={session} />
-            {bookingType === 'Reschedule' && <input type="hidden" name="oldRefCode" value={refCode} />}
+          {/* HIDDEN FIELDS */}
+          <input type="hidden" name="type" value={bookingType} />
+          {bookingType === 'Reschedule' && <input type="hidden" name="oldRefCode" value={refCode} />}
 
-            <TimeSlotGrid 
-              timeSlots={timeSlots}
-              slotCounts={slotCounts} 
-              loading={loadingSlots} 
-              selectedDate={selectedDate}
-              maxCapacity={maxCapacity} 
-            />
-
-            <SessionSelect selected={session} onSelect={setSession} />
-
-            {session !== 'CONSULTATION' && (
-              <div className="animate-in fade-in slide-in-from-top-4 duration-500">
-                <ServiceList />
-              </div>
-            )}
-
-            {/* Pass initialData to GuestForm for pre-filling */}
-            <GuestForm initialData={guestData} />
-
-            <label className="flex gap-3 cursor-pointer group p-2">
-                <input type="checkbox" name="agreement" required className="mt-0.5 w-4 h-4 text-rose-500 rounded border-slate-300 focus:ring-rose-500" />
-                <span className="text-xs text-slate-500 leading-relaxed group-hover:text-slate-700 transition-colors font-medium">
-                  I confirm the details are correct and authorize Sisters & Brows to contact me.
+          {/* CONFIRMATION */}
+          <div className="pt-2 pb-6">
+            <label className="flex gap-3 cursor-pointer group p-2 mb-4">
+                <input type="checkbox" name="agreement" required className="mt-0.5 w-4 h-4 text-[#202124] rounded border-slate-300 focus:ring-[#202124]" />
+                <span className="text-xs text-slate-500 font-medium group-hover:text-slate-700 transition-colors">
+                  I confirm all the details are correct.
                 </span>
             </label>
 
-            <button type="button" onClick={handleProceed} className="w-full bg-[#0f172a] text-white font-bold text-lg py-4 rounded-2xl shadow-xl hover:bg-slate-900 hover:scale-[1.01] transition-all flex items-center justify-center gap-2">
-               Review Booking <ArrowRight className="w-5 h-5" />
+            <button 
+                type="submit" 
+                disabled={isPending}
+                className="w-full bg-[#202124] text-[#e6c200] font-bold text-lg py-4 rounded-2xl shadow-xl hover:bg-black hover:scale-[1.01] transition-all flex items-center justify-center gap-2 disabled:opacity-70 uppercase tracking-widest"
+            >
+               {isPending ? <Loader2 className="w-5 h-5 animate-spin"/> : "Confirm Booking"}
             </button>
           </div>
-
-          {step === 'REVIEW' && (
-             <ReviewSummary 
-                data={reviewData} 
-                onEdit={() => setStep('FORM')} 
-             />
-          )}
         </form>
         
         <div className="text-center pb-8 opacity-40">
-           <p className="text-sm font-bold text-slate-900">Sisters & Brows</p>
-           <p className="text-[10px] text-slate-500 mt-0.5 lowercase">developed by 2xe2ipi</p>
+           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Sisters & Brows 2026</p>
         </div>
       </div>
     </div>

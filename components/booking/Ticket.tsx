@@ -1,124 +1,118 @@
-import { Check, Copy, Scissors, RotateCcw, MapPin } from 'lucide-react';
+import { Check, Copy, Scissors, RotateCcw, Calendar, MapPin, User } from 'lucide-react';
 
-export default function Ticket({ data, refCode }: { data: any, refCode: string }) {
+interface TicketProps {
+  data: any;
+  refCode: string;
+}
+
+export default function Ticket({ data, refCode }: TicketProps) {
   if (!data) return null;
   
   const isReschedule = data.type === 'Reschedule';
-
+  
+  // Format Date Nicely
   const formatDate = (dateStr: string) => {
     if (!dateStr) return '';
     const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
   };
 
-  // Dynamic Theme Colors
+  const servicesList = data.SERVICES 
+     ? data.SERVICES.split(',') 
+     : (Array.isArray(data.services) ? data.services : [data.services]);
+
+  // Theme Config
   const theme = isReschedule 
-    ? { bg: 'bg-amber-500', light: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-100' }
-    : { bg: 'bg-rose-500', light: 'bg-rose-50', text: 'text-rose-600', border: 'border-rose-100' };
+    ? { bg: 'bg-amber-500', text: 'text-amber-600', border: 'border-amber-100', pill: 'bg-amber-100 text-amber-700' }
+    : { bg: 'bg-rose-500', text: 'text-rose-600', border: 'border-rose-100', pill: 'bg-rose-100 text-rose-700' };
 
   return (
-    <div className="min-h-[85vh] w-full flex flex-col items-center justify-center p-6 bg-slate-50">
+    <div className="min-h-screen w-full flex flex-col items-center justify-center p-4 bg-slate-100">
       
-      {/* Success Message */}
-      <div className="text-center mb-8 animate-in slide-in-from-bottom-4 duration-700">
-        <div className={`mx-auto w-14 h-14 rounded-full flex items-center justify-center mb-3 shadow-lg border-4 border-white ${theme.bg} text-white`}>
-          {isReschedule ? <RotateCcw className="w-7 h-7" /> : <Check className="w-7 h-7" />}
-        </div>
-        <h1 className="text-2xl font-bold text-slate-900">{isReschedule ? 'Rescheduled!' : 'You are Booked!'}</h1>
-        <p className="text-slate-500 text-xs font-medium mt-1">We've sent a receipt to your email.</p>
-      </div>
-
-      {/* TICKET CONTAINER */}
-      <div className="w-full max-w-[340px] bg-white rounded-2xl shadow-2xl shadow-slate-200 overflow-hidden relative animate-in zoom-in-95 duration-500 flex flex-col">
+      {/* TICKET CARD */}
+      <div className="w-full max-w-[400px] bg-white rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-500">
         
-        {/* COLORED TICKET HEADER */}
-        <div className={`${theme.bg} p-6 pb-8 text-center relative overflow-hidden`}>
-           <div className="absolute top-0 left-0 w-full h-full opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
-           <p className="text-white/80 text-[10px] font-bold uppercase tracking-[0.2em] mb-2 relative z-10">Admit One</p>
-           <h2 className="text-4xl font-black text-white tracking-tighter relative z-10">{data.time?.split('-')[0]}</h2>
-           <div className="inline-block mt-2 px-3 py-1 bg-white/20 backdrop-blur-sm rounded-full text-white font-bold text-xs uppercase tracking-widest relative z-10">
-              {formatDate(data.date)}
-           </div>
+        {/* HEADER */}
+        <div className={`${theme.bg} p-6 flex flex-col items-center text-center text-white relative`}>
+            {/* Status Icon */}
+            <div className="mb-3 p-3 bg-white/20 backdrop-blur-md rounded-full shadow-sm">
+                {isReschedule ? <RotateCcw className="w-8 h-8 text-white" /> : <Check className="w-8 h-8 text-white" />}
+            </div>
+            <h1 className="text-3xl font-black tracking-tight uppercase">
+                {isReschedule ? 'Rescheduled' : 'Confirmed'}
+            </h1>
+            <p className="opacity-90 font-medium text-sm mt-1">Sisters & Brows Booking</p>
         </div>
 
-        {/* TICKET BODY */}
-        <div className="p-8 space-y-6 bg-white relative">
-           
-           {/* Perforation Effect (Top) */}
-           <div className="absolute top-0 left-0 w-full -mt-3 flex justify-between">
-              <div className="w-6 h-6 bg-slate-50 rounded-full -ml-3"></div>
-              <div className="w-6 h-6 bg-slate-50 rounded-full -mr-3"></div>
-           </div>
+        {/* BODY */}
+        <div className="p-6 space-y-6">
+            
+            {/* TIME & DATE (Hero Info) */}
+            <div className="text-center border-b-2 border-dashed border-slate-100 pb-6">
+                <h2 className="text-5xl font-black text-slate-900 tracking-tighter mb-2">
+                    {String(data.TIME || data.time).split('-')[0].trim()}
+                </h2>
+                <div className="flex items-center justify-center gap-2 text-slate-500 font-bold uppercase tracking-wider text-sm">
+                    <Calendar className="w-4 h-4" />
+                    {formatDate(data.DATE || data.date)}
+                </div>
+            </div>
 
-           {/* Details */}
-           <div className="space-y-4">
-             <div className="flex items-start gap-4">
-               <div className={`p-2 rounded-lg ${theme.light} ${theme.text}`}>
-                 <UserAvatar name={`${data.firstName} ${data.lastName}`} />
-               </div>
-               <div>
-                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Guest</p>
-                 <p className="text-sm font-bold text-slate-900">{data.firstName} {data.lastName}</p>
-               </div>
-             </div>
+            {/* SESSION & TYPE PILLS */}
+            <div className="flex justify-center gap-3">
+                 <span className={`px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest ${theme.pill}`}>
+                    {data.SESSION || data.session} Session
+                 </span>
+                 <span className="px-4 py-1.5 rounded-full bg-slate-100 text-slate-600 text-xs font-black uppercase tracking-widest">
+                    {data.BRANCH || data.branch}
+                 </span>
+            </div>
 
-             <div className="flex items-start gap-4">
-               <div className={`p-2 rounded-lg ${theme.light} ${theme.text}`}>
-                 <MapPin className="w-4 h-4" />
-               </div>
-               <div>
-                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Location</p>
-                 <p className="text-sm font-bold text-slate-900">{data.branch}</p>
-               </div>
-             </div>
-
-             <div className="flex items-start gap-4">
-               <div className={`p-2 rounded-lg ${theme.light} ${theme.text}`}>
-                 <Scissors className="w-4 h-4" />
-               </div>
-               <div>
-                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Services</p>
-                 <div className="flex flex-wrap gap-1">
-                    {Array.isArray(data.services) ? data.services.map((s:string, i:number) => (
-                      <span key={i} className="px-2 py-0.5 bg-slate-50 border border-slate-100 rounded text-[10px] font-bold text-slate-700">{s}</span>
-                    )) : <span className="text-sm font-bold text-slate-900">{data.services}</span>}
+            {/* DETAILS */}
+            <div className="space-y-4 pt-2">
+                 <div className="flex items-start gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                    <User className={`w-5 h-5 mt-0.5 ${theme.text}`} />
+                    <div>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Guest</p>
+                        <p className="text-lg font-bold text-slate-900">{data["FULL NAME"] || data.firstName + ' ' + data.lastName}</p>
+                    </div>
                  </div>
-               </div>
-             </div>
-           </div>
 
-           {/* Dotted Line */}
-           <div className="w-full border-t-2 border-dashed border-slate-100 my-6 relative">
-              <div className="absolute top-[-9px] left-[-32px] w-5 h-5 bg-slate-50 rounded-full shadow-inner"></div>
-              <div className="absolute top-[-9px] right-[-32px] w-5 h-5 bg-slate-50 rounded-full shadow-inner"></div>
-           </div>
+                 <div className="flex items-start gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                    <Scissors className={`w-5 h-5 mt-0.5 ${theme.text}`} />
+                    <div>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Services</p>
+                        <div className="flex flex-wrap gap-1">
+                            {servicesList.map((s: string, i: number) => (
+                                <span key={i} className="text-sm font-bold text-slate-800 leading-tight">
+                                    {s}{i < servicesList.length - 1 ? ',' : ''}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                 </div>
+            </div>
+        </div>
 
-           {/* Footer Stub */}
-           <div className="flex justify-between items-center pt-1">
-             <div>
-               <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Reference ID</p>
-               <p className="font-mono text-xl font-bold text-slate-900 tracking-widest">{refCode}</p>
-             </div>
-             <button className="p-2 text-slate-300 hover:text-slate-900 transition-colors">
-               <Copy className="w-5 h-5" />
-             </button>
-           </div>
+        {/* FOOTER (Ref Code) */}
+        <div className="bg-slate-900 p-4 flex items-center justify-between">
+            <div>
+                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Reference ID</p>
+                <p className="text-white font-mono font-bold text-lg tracking-widest">{refCode}</p>
+            </div>
+            <button className="bg-white/10 p-2 rounded-lg hover:bg-white/20 transition-colors">
+                <Copy className="w-5 h-5 text-white" />
+            </button>
         </div>
       </div>
-
+      
       <button 
         onClick={() => window.location.reload()}
-        className="mt-8 text-xs font-bold text-slate-400 hover:text-slate-900 transition-colors"
+        className="mt-8 px-6 py-3 rounded-full bg-white shadow-sm border border-slate-200 text-slate-600 text-xs font-bold uppercase tracking-widest hover:bg-slate-50 transition-all"
       >
-        Book Another Appointment
+        Book Another
       </button>
 
     </div>
   );
-}
-
-// Simple Initials Avatar
-const UserAvatar = ({ name }: { name: string }) => {
-  const initials = name.split(' ').map(n => n[0]).join('').substring(0,2).toUpperCase();
-  return <span className="text-xs font-black">{initials}</span>;
 }

@@ -7,6 +7,14 @@ import {
   getSheetRows 
 } from '@/lib/googleSheets';
 
+// --- TYPES ---
+export type BookingState = {
+  success: boolean;
+  message: string;
+  refCode: string;
+  data?: Record<string, string>;
+};
+
 // --- FETCH ACTIONS ---
 
 export async function fetchAppConfig() {
@@ -56,8 +64,10 @@ function normalizeStr(str: any): string {
 
 function normalizeDate(raw: any, targetYear?: number): string {
   if (!raw) return "";
+  // 1. Clean string
   let str = String(raw).trim().replace(/-/g, ' '); 
   
+  // 2. Handle "Jan 28" pattern
   const match = str.match(/^([A-Za-z]+)[\s-]?(\d{1,2})$/);
   if (match) {
     const month = match[1];
@@ -85,10 +95,11 @@ function normalizeSheetDate(isoDate: string): string {
   return `${months[d.getMonth()]}-${d.getDate()}`;
 }
 
-// [FIX] Simplifed to match UI Keys (e.g. "10:00 AM")
-function getCleanTime(timeStr: any): string { 
+// STRICT TIME CLEANER (Removes all spaces/colons)
+function getStrictTime(timeStr: any): string { 
   if (!timeStr) return "";
-  return String(timeStr).split(' - ')[0].trim(); 
+  const firstPart = String(timeStr).split('-')[0]; 
+  return firstPart.replace(/[^a-zA-Z0-9]/g, '').toLowerCase(); 
 }
 
 function findColumnKey(headers: string[], keyword: string): string | undefined {
@@ -124,13 +135,13 @@ export async function getSlotAvailability(date: string, branch: string) {
 
     if (rows && KEY_BRANCH && KEY_DATE && KEY_TIME) {
       rows.forEach((row) => {
-        // [FIX] Ensure get() receives string key, safe navigation
-        const rDate = normalizeDate(row.get(KEY_DATE!), targetYear);
-        const rBranch = normalizeStr(row.get(KEY_BRANCH!));
-        const rTime = getCleanTime(row.get(KEY_TIME!));
+        // Safe string conversions
+        const rDate = normalizeDate(String(row.get(KEY_DATE) || ""), targetYear);
+        const rBranch = normalizeStr(String(row.get(KEY_BRANCH) || ""));
+        const rTimeStrict = getStrictTime(String(row.get(KEY_TIME) || ""));
 
         if ((rBranch === targetShortBranch || rBranch === targetFullBranch) && rDate === targetDate) {
-           counts[rTime] = (counts[rTime] || 0) + 1;
+           counts[rTimeStrict] = (counts[rTimeStrict] || 0) + 1;
         }
       });
     }
@@ -141,7 +152,7 @@ export async function getSlotAvailability(date: string, branch: string) {
   }
 }
 
-// --- LOOKUP BOOKING (FOR RESCHEDULE) ---
+// --- LOOKUP BOOKING ---
 export async function lookupBooking(refCode: string) {
   try {
     const { sheet, rows } = await getSheetRows();
@@ -153,11 +164,10 @@ export async function lookupBooking(refCode: string) {
     const KEY_CLIENT = findColumnKey(headers, "CLIENT #");
     if (!KEY_CLIENT) return { success: false, message: "System Error: No ID column" };
 
-    const match = rows.find(r => String(r.get(KEY_CLIENT!)).trim().toUpperCase() === refCode.trim().toUpperCase());
+    const match = rows.find(r => String(r.get(KEY_CLIENT)).trim().toUpperCase() === refCode.trim().toUpperCase());
 
     if (!match) return { success: false, message: "Booking Reference not found." };
 
-    // Map fields back to form data
     const KEY_BRANCH = findColumnKey(headers, "BRANCH");
     const KEY_DATE = findColumnKey(headers, "DATE");
     const KEY_FIRST = findColumnKey(headers, "FULL NAME"); 
@@ -171,12 +181,11 @@ export async function lookupBooking(refCode: string) {
     const lastName = nameParts.length > 1 ? nameParts.pop() || "" : "";
     const firstName = nameParts.join(' ') || fullName;
 
-    const rawDate = KEY_DATE ? match.get(KEY_DATE) : "";
+    const rawDate = KEY_DATE ? String(match.get(KEY_DATE)) : "";
     const normalizedDate = normalizeDate(rawDate, new Date().getFullYear()); 
 
-    // Reverse Map Branch Code to Name
     const { BRANCH_MAP } = await getDynamicConfig();
-    const rawBranch = KEY_BRANCH ? match.get(KEY_BRANCH) : "";
+    const rawBranch = KEY_BRANCH ? String(match.get(KEY_BRANCH)) : "";
     const branchName = Object.keys(BRANCH_MAP).find(key => BRANCH_MAP[key] === rawBranch) || rawBranch;
 
     return {
@@ -184,12 +193,12 @@ export async function lookupBooking(refCode: string) {
       data: {
         firstName,
         lastName,
-        phone: KEY_PHONE ? match.get(KEY_PHONE) : "",
-        fbLink: KEY_FB ? match.get(KEY_FB) : "",
+        phone: KEY_PHONE ? String(match.get(KEY_PHONE)) : "",
+        fbLink: KEY_FB ? String(match.get(KEY_FB)) : "",
         branch: String(branchName), 
         date: normalizedDate, 
-        session: KEY_SESSION ? match.get(KEY_SESSION) : "1ST",
-        services: KEY_SERVICES ? match.get(KEY_SERVICES) : ""
+        session: KEY_SESSION ? String(match.get(KEY_SESSION)) : "1ST",
+        services: KEY_SERVICES ? String(match.get(KEY_SERVICES)) : ""
       }
     };
   } catch (error) {
@@ -216,7 +225,7 @@ const formSchema = z.object({
   mop: z.enum(["Cash", "G-Cash", "Maya", "Bank", "Other"]) 
 });
 
-export async function submitBooking(prevState: any, formData: FormData) {
+export async function submitBooking(prevState: any, formData: FormData): Promise<BookingState> {
   const { BRANCH_MAP, BRANCH_LIMITS } = await getDynamicConfig();
 
   const servicesRaw = formData.getAll('services');
@@ -260,7 +269,7 @@ export async function submitBooking(prevState: any, formData: FormData) {
     const targetFullBranch = normalizeStr(data.branch);
     const limit = BRANCH_LIMITS[shortBranch] || 4;
     const displayTime = data.time.split(' - ')[0].trim();
-    const cleanTargetTime = getCleanTime(data.time);
+    const cleanTargetTime = getStrictTime(data.time); 
 
     // AVAILABILITY CHECK
     const KEY_BRANCH = findColumnKey(headers, "BRANCH");
@@ -268,14 +277,13 @@ export async function submitBooking(prevState: any, formData: FormData) {
     const KEY_TIME = findColumnKey(headers, "TIME");
     const KEY_CLIENT = findColumnKey(headers, "CLIENT #");
     
-    // Check Limits
     let slotCount = 0;
     if (rows && KEY_BRANCH && KEY_DATE && KEY_TIME) {
         for (let i = 0; i < rows.length; i++) {
           const row = rows[i];
-          const rDate = normalizeDate(row.get(KEY_DATE!), targetYear);
-          const rBranch = normalizeStr(row.get(KEY_BRANCH!));
-          const rTime = getCleanTime(row.get(KEY_TIME!));
+          const rDate = normalizeDate(String(row.get(KEY_DATE) || ""), targetYear);
+          const rBranch = normalizeStr(String(row.get(KEY_BRANCH) || ""));
+          const rTime = getStrictTime(String(row.get(KEY_TIME) || ""));
 
           if ((rBranch === targetShortBranch || rBranch === targetFullBranch) && 
               rDate === targetDate && 
@@ -283,8 +291,8 @@ export async function submitBooking(prevState: any, formData: FormData) {
             
             // If Rescheduling, Ignore the OLD booking in the count
             if (data.type === 'Reschedule' && data.oldRefCode && KEY_CLIENT) {
-               const rRef = String(row.get(KEY_CLIENT)).trim();
-               if (rRef === String(data.oldRefCode).trim()) continue; 
+               const rRef = String(row.get(KEY_CLIENT) || "").trim();
+               if (rRef.toUpperCase() === String(data.oldRefCode).trim().toUpperCase()) continue; 
             }
             
             slotCount++;
@@ -304,11 +312,12 @@ export async function submitBooking(prevState: any, formData: FormData) {
     let finalRefCode = generateRefCode();
     
     if (data.type === 'Reschedule' && data.oldRefCode && KEY_CLIENT) {
-       // Find and delete old row
-       const rowToDelete = rows?.find(r => String(r.get(KEY_CLIENT!)).trim() === String(data.oldRefCode).trim());
+       const rowToDelete = rows?.find(r => 
+         String(r.get(KEY_CLIENT) || "").trim().toUpperCase() === String(data.oldRefCode).trim().toUpperCase()
+       );
        if (rowToDelete) {
          await rowToDelete.delete();
-         finalRefCode = String(data.oldRefCode).trim(); // PRESERVE ID
+         finalRefCode = String(data.oldRefCode).trim(); // KEEP OLD ID
        }
     }
 
@@ -338,7 +347,12 @@ export async function submitBooking(prevState: any, formData: FormData) {
 
     await sheet.addRow(rowPayload);
     
-    return { success: true, message: "Booking Confirmed! See you there.", refCode: finalRefCode };
+    return { 
+        success: true, 
+        message: "Booking Confirmed!", 
+        refCode: finalRefCode, 
+        data: desiredData 
+    };
 
   } catch (error) {
     console.error("Sheet Error:", error);
