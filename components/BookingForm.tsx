@@ -27,7 +27,6 @@ export default function BookingForm() {
   const [state, formAction, isPending] = useActionState(submitBooking, initialState);
   const formRef = useRef<HTMLFormElement>(null);
   
-  // Cleaned up: Removed 'step' and 'reviewData' states
   const [configLoaded, setConfigLoaded] = useState(false);
   const [branches, setBranches] = useState<any[]>([]); 
   const [timeSlots, setTimeSlots] = useState<string[]>([]);
@@ -37,18 +36,17 @@ export default function BookingForm() {
   const [refCode, setRefCode] = useState("");
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupMessage, setLookupMessage] = useState("");
+  const [bookingFound, setBookingFound] = useState(false); 
   
   const [selectedBranch, setSelectedBranch] = useState("");
   const [selectedDate, setSelectedDate] = useState("");
-  const [selectedTime, setSelectedTime] = useState(""); // NEW: Track selected time to block UI
+  const [selectedTime, setSelectedTime] = useState("");
   const [session, setSession] = useState("1ST");
   const [slotCounts, setSlotCounts] = useState<Record<string, number>>({});
   const [maxCapacity, setMaxCapacity] = useState(4); 
   const [loadingSlots, setLoadingSlots] = useState(false);
   
-  // Guest Data (for pre-filling if needed, though mostly handled by form)
   const [guestData, setGuestData] = useState<any>(null); 
-
   const [formError, setFormError] = useState("");
   const today = new Date().toISOString().split('T')[0];
 
@@ -66,9 +64,7 @@ export default function BookingForm() {
   }, []);
 
   useEffect(() => {
-    // Reset time selection when branch or date changes to force re-selection
     setSelectedTime(""); 
-    
     async function fetchSlots() {
       if (!selectedDate || !selectedBranch || !configLoaded) return;
       setLoadingSlots(true);
@@ -87,7 +83,19 @@ export default function BookingForm() {
     fetchSlots();
   }, [selectedDate, selectedBranch, configLoaded]);
 
-  // Lookup Handler
+  const handleTypeChange = (newType: string) => {
+    setBookingType(newType);
+    if (newType === "New Appointment") {
+      setBookingFound(false);
+      setRefCode("");
+      setLookupMessage("");
+      setGuestData(null);
+      setSelectedDate("");
+      setSelectedTime("");
+      if (branches.length > 0) setSelectedBranch(branches[0].name);
+    }
+  };
+
   const handleLookup = async () => {
     setLookupLoading(true);
     setLookupMessage("");
@@ -105,8 +113,10 @@ export default function BookingForm() {
             phone: d.phone,
             fbLink: d.fbLink,
         });
+        setBookingFound(true);
       } else {
         setLookupMessage(res.message || "Not found.");
+        setBookingFound(false);
       }
     } catch (e) {
       setLookupMessage("Error searching.");
@@ -115,19 +125,15 @@ export default function BookingForm() {
     }
   };
 
-  // Direct Submission Handler (Replaces handleProceed)
   const handleSubmit = (e: React.FormEvent) => {
     setFormError("");
-
     if (!selectedBranch || !selectedDate || !selectedTime) {
        e.preventDefault();
        setFormError("Please complete all selection steps.");
        window.scrollTo({ top: 0, behavior: 'smooth' });
        return;
     }
-
     if (formRef.current) {
-      // Validate Services
       if (session !== 'CONSULTATION') {
          const formData = new FormData(formRef.current);
          const services = formData.getAll('services');
@@ -137,19 +143,15 @@ export default function BookingForm() {
             return;
          }
       }
-      
-      // Standard HTML5 validation check
       if (!formRef.current.checkValidity()) {
          e.preventDefault();
          formRef.current.reportValidity();
          return;
       }
     }
-    // If all good, let the form submit naturally to 'action={formAction}'
   };
 
   if (state.success) {
-    // Direct success state - uses the reviewData structure returned by server
     return <Ticket data={state.data || {}} refCode={state.refCode} />;
   }
 
@@ -157,13 +159,15 @@ export default function BookingForm() {
     return <div className="min-h-screen flex items-center justify-center text-slate-400 font-bold">Loading booking system...</div>;
   }
 
+  const showMainForm = bookingType === "New Appointment" || (bookingType === "Reschedule" && bookingFound);
+
   return (
     <div className="min-h-screen w-full bg-[#f8fafc] flex flex-col items-center py-8 px-4">
       <div className="w-full max-w-xl space-y-6">
         
-        {/* 1. COMPACT HEADER */}
-        <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-5 animate-in fade-in slide-in-from-top-4 duration-500">
-            <div className="relative w-16 h-16 shrink-0 rounded-full overflow-hidden border-2 border-slate-100 shadow-sm">
+        {/* COMPACT GRADIENT HEADER - Using specific Dark Hex #202124 */}
+        <div className="bg-gradient-to-r from-[#202124] to-[#35363a] p-4 rounded-2xl shadow-lg border border-slate-700 flex items-center gap-5 animate-in fade-in slide-in-from-top-4 duration-500 text-white">
+            <div className="relative w-16 h-16 shrink-0 rounded-full overflow-hidden border-2 border-[#e6c200] shadow-sm">
                 <Image 
                   src="/logo.jpg" 
                   alt="Logo" 
@@ -173,25 +177,24 @@ export default function BookingForm() {
                 />
             </div>
             <div className="flex flex-col">
-                <div className="flex items-center gap-2 text-[10px] font-bold tracking-widest text-slate-400 uppercase">
-                    <Sparkles className="w-3 h-3 text-rose-500" /> Official Booking
+                <div className="flex items-center gap-2 text-[10px] font-bold tracking-widest text-[#e6c200] uppercase">
+                    <Sparkles className="w-3 h-3" /> Official Booking
                 </div>
-                <h1 className="text-xl font-extrabold text-slate-900 leading-tight">Sisters & Brows</h1>
-                <p className="text-xs text-slate-500 font-medium">Premium Aesthetics & Microblading Services</p>
+                <h1 className="text-xl font-extrabold text-white leading-tight">Sisters & Brows</h1>
+                <p className="text-xs text-slate-400 font-medium">Premium Aesthetics & Microblading Services</p>
             </div>
         </div>
 
         <form ref={formRef} action={formAction} onSubmit={handleSubmit} className="space-y-6" noValidate>
           
-          {/* Error Messages */}
           {!state.success && state.message && (
-            <div className="bg-red-50 border border-red-200 text-red-600 p-4 rounded-xl flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
+            <div className="bg-red-50 border border-red-200 text-red-600 p-4 rounded-xl flex items-start gap-3">
               <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
               <div className="text-sm font-bold">{state.message}</div>
             </div>
           )}
           {formError && (
-            <div className="bg-amber-50 border border-amber-200 text-amber-700 p-4 rounded-xl flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
+            <div className="bg-amber-50 border border-amber-200 text-amber-700 p-4 rounded-xl flex items-start gap-3">
               <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
               <div className="text-sm font-bold">{formError}</div>
             </div>
@@ -201,7 +204,7 @@ export default function BookingForm() {
             
             <StartHere 
                bookingType={bookingType} 
-               setBookingType={setBookingType} 
+               setBookingType={handleTypeChange} 
                refCode={refCode}
                setRefCode={setRefCode}
                onLookup={handleLookup}
@@ -209,75 +212,76 @@ export default function BookingForm() {
                lookupMessage={lookupMessage}
             />
 
-            <BranchSelect 
-               branches={branches}
-               selected={selectedBranch}
-               onSelect={setSelectedBranch}
-            />
-
-            <DateSelect 
-               selected={selectedDate}
-               onSelect={setSelectedDate}
-               minDate={today}
-            />
-            
-            <input type="hidden" name="branch" value={selectedBranch} />
-            <input type="hidden" name="date" value={selectedDate} />
-            <input type="hidden" name="session" value={session} />
-            <input type="hidden" name="type" value={bookingType} />
-            {bookingType === 'Reschedule' && <input type="hidden" name="oldRefCode" value={refCode} />}
-
-            <TimeSlotGrid 
-              timeSlots={timeSlots}
-              slotCounts={slotCounts} 
-              loading={loadingSlots} 
-              selectedDate={selectedDate}
-              maxCapacity={maxCapacity} 
-              onSelectTime={setSelectedTime} // Pass setter
-            />
-
-            {/* 3. BLOCKING LOGIC: Only show rest of form if time is selected */}
-            {selectedTime ? (
+            {showMainForm && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    <SectionContainer title="Session Type" icon={<Layers className="w-4 h-4 text-[#e6c200]" />}>
-                        <SessionSelect selected={session} onSelect={setSession} />
-                    </SectionContainer>
+                    <BranchSelect 
+                       branches={branches}
+                       selected={selectedBranch}
+                       onSelect={setSelectedBranch}
+                    />
 
-                    {session !== 'CONSULTATION' && (
-                        <SectionContainer title="Services" icon={<Scissors className="w-4 h-4 text-[#e6c200]" />}>
-                            <ServiceList />
-                        </SectionContainer>
-                    )}
-
-                    <SectionContainer title="Personal Details" icon={<User className="w-4 h-4 text-[#e6c200]" />}>
-                        {/* If we have guestData from lookup, you might want to pass it here to pre-fill inputs */}
-                        <GuestForm /> 
-                    </SectionContainer>
+                    <DateSelect 
+                       selected={selectedDate}
+                       onSelect={setSelectedDate}
+                       minDate={today}
+                    />
                     
-                    <SpecialRequests />
+                    <input type="hidden" name="branch" value={selectedBranch} />
+                    <input type="hidden" name="date" value={selectedDate} />
+                    <input type="hidden" name="session" value={session} />
+                    <input type="hidden" name="type" value={bookingType} />
+                    {bookingType === 'Reschedule' && <input type="hidden" name="oldRefCode" value={refCode} />}
 
-                    <label className="flex gap-3 cursor-pointer group p-2">
-                        <input type="checkbox" name="agreement" required className="mt-0.5 w-4 h-4 text-rose-500 rounded border-slate-300 focus:ring-rose-500" />
-                        <span className="text-xs text-slate-500 leading-relaxed group-hover:text-slate-700 transition-colors font-medium">
-                        I confirm the details are correct and authorize Sisters & Brows to contact me.
-                        </span>
-                    </label>
+                    <TimeSlotGrid 
+                      timeSlots={timeSlots}
+                      slotCounts={slotCounts} 
+                      loading={loadingSlots} 
+                      selectedDate={selectedDate}
+                      maxCapacity={maxCapacity} 
+                      onSelectTime={setSelectedTime}
+                    />
 
-                    <button 
-                        type="submit" 
-                        disabled={isPending}
-                        className="w-full bg-[#0f172a] text-white font-bold text-lg py-4 rounded-2xl shadow-xl hover:bg-slate-900 hover:scale-[1.01] transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
-                    >
-                        {isPending ? 'Processing...' : 'Confirm Booking'}
-                    </button>
+                    {selectedTime ? (
+                        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <SectionContainer title="Session Type" icon={<Layers className="w-4 h-4 text-[#e6c200]" />}>
+                                <SessionSelect selected={session} onSelect={setSession} />
+                            </SectionContainer>
+
+                            {session !== 'CONSULTATION' && (
+                                <SectionContainer title="Services" icon={<Scissors className="w-4 h-4 text-[#e6c200]" />}>
+                                    <ServiceList />
+                                </SectionContainer>
+                            )}
+
+                            <SectionContainer title="Personal Details" icon={<User className="w-4 h-4 text-[#e6c200]" />}>
+                                <GuestForm initialData={guestData} /> 
+                            </SectionContainer>
+                            
+                            <SpecialRequests />
+
+                            <label className="flex gap-3 cursor-pointer group p-2">
+                                <input type="checkbox" name="agreement" required className="mt-0.5 w-4 h-4 text-[#e6c200] rounded border-slate-300 focus:ring-[#e6c200] accent-[#e6c200]" />
+                                <span className="text-xs text-slate-500 leading-relaxed group-hover:text-slate-700 transition-colors font-medium">
+                                I confirm the details are correct and authorize Sisters & Brows to contact me.
+                                </span>
+                            </label>
+
+                            <button 
+                                type="submit" 
+                                disabled={isPending}
+                                className="w-full bg-[#202124] text-[#e6c200] font-bold text-lg py-4 rounded-2xl shadow-xl hover:bg-black hover:scale-[1.01] transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed border border-[#35363a]"
+                            >
+                                {isPending ? 'Processing...' : 'Confirm Booking'}
+                            </button>
+                        </div>
+                    ) : (
+                        selectedDate && !loadingSlots && (
+                            <div className="text-center py-12 opacity-50">
+                                <p className="text-sm font-medium text-slate-400">Select a time slot to continue...</p>
+                            </div>
+                        )
+                    )}
                 </div>
-            ) : (
-                // Optional: Placeholder to indicate more is coming
-                selectedDate && !loadingSlots && (
-                    <div className="text-center py-12 opacity-50">
-                        <p className="text-sm font-medium text-slate-400">Select a time slot to continue...</p>
-                    </div>
-                )
             )}
 
           </div>
