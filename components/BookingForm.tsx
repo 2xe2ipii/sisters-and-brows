@@ -1,21 +1,23 @@
 'use client'
 
 import { useActionState, useState, useEffect, useRef } from 'react';
-import { submitBooking, getSlotAvailability, fetchAppConfig } from '@/app/actions';
+import { submitBooking, getSlotAvailability, fetchAppConfig, lookupBooking } from '@/app/actions';
 import { Sparkles, ArrowRight, AlertCircle } from 'lucide-react';
 
 import StartHere from './booking/StartHere';
 import LocationDate from './booking/LocationDate';
 import TimeSlotGrid from './booking/TimeSlotGrid';
-import SessionSelect from './booking/SessionSelect'; // <--- NEW IMPORT
+import SessionSelect from './booking/SessionSelect';
 import ServiceList from './booking/ServiceList';
 import GuestForm from './booking/GuestForm';
 import ReviewSummary from './booking/ReviewSummary';
 import Ticket from './booking/Ticket';
 
+// [FIX] Add refCode to initial state definition
 const initialState = {
   success: false,
   message: '',
+  refCode: '' 
 };
 
 export default function BookingForm() {
@@ -25,22 +27,26 @@ export default function BookingForm() {
   const [step, setStep] = useState<'FORM' | 'REVIEW'>('FORM');
   const [reviewData, setReviewData] = useState<any>(null);
   
-  // --- DYNAMIC DATA ---
+  // --- CONFIG ---
   const [configLoaded, setConfigLoaded] = useState(false);
   const [branches, setBranches] = useState<any[]>([]); 
   const [timeSlots, setTimeSlots] = useState<string[]>([]);
   
   // --- FORM STATE ---
+  const [bookingType, setBookingType] = useState("New Appointment");
+  const [refCode, setRefCode] = useState("");
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [lookupMessage, setLookupMessage] = useState("");
+  
   const [selectedBranch, setSelectedBranch] = useState("");
   const [selectedDate, setSelectedDate] = useState("");
-  const [session, setSession] = useState("1ST"); // <--- NEW STATE (Default: 1ST)
+  const [session, setSession] = useState("1ST");
   const [slotCounts, setSlotCounts] = useState<Record<string, number>>({});
   const [maxCapacity, setMaxCapacity] = useState(4); 
   const [loadingSlots, setLoadingSlots] = useState(false);
-  const [bookingType, setBookingType] = useState("New Appointment");
-  
-  const [formError, setFormError] = useState("");
+  const [guestData, setGuestData] = useState<any>(null); 
 
+  const [formError, setFormError] = useState("");
   const today = new Date().toISOString().split('T')[0];
 
   useEffect(() => {
@@ -49,7 +55,9 @@ export default function BookingForm() {
       if (res.success) {
         setBranches(res.data.branches || []);
         setTimeSlots(res.data.timeSlots || []);
-        if (res.data.branches?.length > 0) setSelectedBranch(res.data.branches[0].name);
+        if (res.data.branches?.length > 0 && !selectedBranch) {
+            setSelectedBranch(res.data.branches[0].name);
+        }
       }
       setConfigLoaded(true);
     }
@@ -75,10 +83,38 @@ export default function BookingForm() {
     fetchSlots();
   }, [selectedDate, selectedBranch, configLoaded]);
 
+  // --- LOOKUP HANDLER ---
+  const handleLookup = async () => {
+    setLookupLoading(true);
+    setLookupMessage("");
+    try {
+      const res = await lookupBooking(refCode);
+      if (res.success && res.data) {
+        setLookupMessage("Booking Found! Details loaded.");
+        const d = res.data;
+        // Pre-fill State
+        setSelectedBranch(d.branch);
+        setSelectedDate(d.date);
+        setSession(d.session || "1ST");
+        setGuestData({
+          firstName: d.firstName,
+          lastName: d.lastName,
+          phone: d.phone,
+          fbLink: d.fbLink,
+        });
+      } else {
+        setLookupMessage(res.message || "Not found.");
+      }
+    } catch (e) {
+      setLookupMessage("Error searching.");
+    } finally {
+      setLookupLoading(false);
+    }
+  };
+
   const handleProceed = () => {
     setFormError("");
 
-    // 1. Basic Checks
     if (!selectedBranch) {
       setFormError("Please select a branch.");
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -90,12 +126,9 @@ export default function BookingForm() {
       return;
     }
 
-    // 2. Standard Validation
     if (formRef.current && formRef.current.checkValidity()) {
       const formData = new FormData(formRef.current);
       
-      // 3. Conditional Service Validation
-      // If it's NOT a consultation, require at least one service
       if (session !== 'CONSULTATION') {
         const services = formData.getAll('services');
         if (services.length === 0) {
@@ -105,7 +138,8 @@ export default function BookingForm() {
       }
 
       const data = {
-        type: formData.get('type'),
+        type: bookingType, 
+        refCode: refCode, 
         branch: selectedBranch,
         date: selectedDate,
         time: formData.get('time'),
@@ -114,7 +148,7 @@ export default function BookingForm() {
         lastName: formData.get('lastName'),
         phone: formData.get('phone'),
         fbLink: formData.get('fbLink'),
-        session: session, // Use state
+        session: session, 
         others: formData.get('others'),
         ack: formData.get('ack'),
         mop: formData.get('mop'),
@@ -128,7 +162,8 @@ export default function BookingForm() {
   };
 
   if (state.success) {
-    return <Ticket data={reviewData || {}} />;
+    // [FIX] Pass refCode from state to Ticket
+    return <Ticket data={reviewData || {}} refCode={state.refCode} />;
   }
 
   if (!configLoaded) {
@@ -169,7 +204,15 @@ export default function BookingForm() {
 
           <div className={step === 'FORM' ? 'space-y-6 block animate-in fade-in duration-300' : 'hidden'}>
             
-            <StartHere bookingType={bookingType} setBookingType={setBookingType} />
+            <StartHere 
+              bookingType={bookingType} 
+              setBookingType={setBookingType} 
+              refCode={refCode}
+              setRefCode={setRefCode}
+              onLookup={handleLookup}
+              lookupLoading={lookupLoading}
+              lookupMessage={lookupMessage}
+            />
 
             <LocationDate 
               branches={branches}
@@ -184,6 +227,7 @@ export default function BookingForm() {
             <input type="hidden" name="branch" value={selectedBranch} />
             <input type="hidden" name="date" value={selectedDate} />
             <input type="hidden" name="session" value={session} />
+            {bookingType === 'Reschedule' && <input type="hidden" name="oldRefCode" value={refCode} />}
 
             <TimeSlotGrid 
               timeSlots={timeSlots}
@@ -193,17 +237,16 @@ export default function BookingForm() {
               maxCapacity={maxCapacity} 
             />
 
-            {/* NEW: SESSION CHIPS */}
             <SessionSelect selected={session} onSelect={setSession} />
 
-            {/* CONDITIONAL: SERVICE LIST (Hidden for Consultation) */}
             {session !== 'CONSULTATION' && (
               <div className="animate-in fade-in slide-in-from-top-4 duration-500">
                 <ServiceList />
               </div>
             )}
 
-            <GuestForm />
+            {/* Pass initialData to GuestForm for pre-filling */}
+            <GuestForm initialData={guestData} />
 
             <label className="flex gap-3 cursor-pointer group p-2">
                 <input type="checkbox" name="agreement" required className="mt-0.5 w-4 h-4 text-rose-500 rounded border-slate-300 focus:ring-rose-500" />

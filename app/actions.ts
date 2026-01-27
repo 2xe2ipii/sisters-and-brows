@@ -31,7 +31,6 @@ export async function fetchServices() {
 
 // --- BOOKING LOGIC ---
 
-// Helper to load dynamic maps
 async function getDynamicConfig() {
   const config = await getAppConfig();
   const BRANCH_MAP: Record<string, string> = {};
@@ -47,27 +46,20 @@ async function getDynamicConfig() {
   return { BRANCH_MAP, BRANCH_LIMITS };
 }
 
-// Helper: Generate Unique Reference Code (e.g., R-X92B1)
 function generateRefCode() {
   return 'R-' + Math.random().toString(36).substr(2, 5).toUpperCase();
 }
 
-// Data Normalization Helpers
-function normalizeStr(str: any) { return String(str).trim().toLowerCase(); }
+function normalizeStr(str: any): string { 
+  return String(str || "").trim().toLowerCase(); 
+}
 
-// [FIXED] Accepts targetYear to align Sheet Data (Jan 28) with Booking Year (2026)
-function normalizeDate(raw: any, targetYear?: number) {
+function normalizeDate(raw: any, targetYear?: number): string {
   if (!raw) return "";
+  let str = String(raw).trim().replace(/-/g, ' '); 
   
-  // 1. Convert to string and clean aggressively (remove extra spaces)
-  let str = String(raw).trim().replace(/-/g, ' '); // Handle "Jan-28" -> "Jan 28"
-  
-  // 2. Handle "Jan 28" pattern
-  // We match Alphabets + Separator + Digits
   const match = str.match(/^([A-Za-z]+)[\s-]?(\d{1,2})$/);
-  
   if (match) {
-    // Force year to ensure match (Default to current, or use targetYear if provided)
     const month = match[1];
     const day = match[2];
     const yearToUse = targetYear || new Date().getFullYear();
@@ -77,11 +69,8 @@ function normalizeDate(raw: any, targetYear?: number) {
   const d = new Date(str);
   if (isNaN(d.getTime())) return str;
   
-  // If targetYear is provided, OVERRIDE the year (crucial for 2026 bookings vs 2025/2001 defaults)
   let year = d.getFullYear();
-  if (targetYear) {
-    year = targetYear;
-  }
+  if (targetYear) year = targetYear;
 
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
@@ -89,17 +78,20 @@ function normalizeDate(raw: any, targetYear?: number) {
   return `${year}-${month}-${day}`;
 }
 
-// [NEW] Formats YYYY-MM-DD back to "Jan-28" for saving to Sheet
-function normalizeSheetDate(isoDate: string) {
+function normalizeSheetDate(isoDate: string): string {
   if (!isoDate) return "";
   const d = new Date(isoDate);
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   return `${months[d.getMonth()]}-${d.getDate()}`;
 }
 
-function getCleanTime(timeStr: any) { return String(timeStr).split(' - ')[0].trim().toLowerCase(); }
+// [FIX] Simplifed to match UI Keys (e.g. "10:00 AM")
+function getCleanTime(timeStr: any): string { 
+  if (!timeStr) return "";
+  return String(timeStr).split(' - ')[0].trim(); 
+}
 
-function findColumnKey(headers: string[], keyword: string) {
+function findColumnKey(headers: string[], keyword: string): string | undefined {
   if (headers.includes(keyword)) return keyword;
   const normKeyword = keyword.toLowerCase().replace(/[^a-z0-9]/g, '');
   return headers.find(h => h.toLowerCase().replace(/[^a-z0-9]/g, '') === normKeyword);
@@ -116,27 +108,26 @@ export async function getSlotAvailability(date: string, branch: string) {
     if (!sheet.headerValues) await sheet.loadHeaderRow();
     const headers = sheet.headerValues;
 
-    const KEY_BRANCH = findColumnKey(headers, "BRANCH") || "BRANCH";
-    const KEY_DATE = findColumnKey(headers, "DATE") || "DATE";
-    const KEY_TIME = findColumnKey(headers, "TIME") || "TIME";
+    const KEY_BRANCH = findColumnKey(headers, "BRANCH");
+    const KEY_DATE = findColumnKey(headers, "DATE");
+    const KEY_TIME = findColumnKey(headers, "TIME");
 
     const counts: Record<string, number> = {};
     
-    // [FIX] Extract year from requested date
     const requestedDateObj = new Date(date);
     const targetYear = requestedDateObj.getFullYear();
-
     const targetDate = normalizeDate(date, targetYear);
+    
     const targetFullBranch = normalizeStr(branch);
     const targetShortBranch = normalizeStr(BRANCH_MAP[branch] || branch);
     const limit = BRANCH_LIMITS[BRANCH_MAP[branch] || branch] || 4;
 
-    if (rows) {
+    if (rows && KEY_BRANCH && KEY_DATE && KEY_TIME) {
       rows.forEach((row) => {
-        // [FIX] Pass targetYear to normalizeDate so Sheet rows (Jan 28) match Booking (2026)
-        const rDate = normalizeDate(row.get(KEY_DATE), targetYear);
-        const rBranch = normalizeStr(row.get(KEY_BRANCH));
-        const rTime = getCleanTime(row.get(KEY_TIME));
+        // [FIX] Ensure get() receives string key, safe navigation
+        const rDate = normalizeDate(row.get(KEY_DATE!), targetYear);
+        const rBranch = normalizeStr(row.get(KEY_BRANCH!));
+        const rTime = getCleanTime(row.get(KEY_TIME!));
 
         if ((rBranch === targetShortBranch || rBranch === targetFullBranch) && rDate === targetDate) {
            counts[rTime] = (counts[rTime] || 0) + 1;
@@ -150,9 +141,67 @@ export async function getSlotAvailability(date: string, branch: string) {
   }
 }
 
+// --- LOOKUP BOOKING (FOR RESCHEDULE) ---
+export async function lookupBooking(refCode: string) {
+  try {
+    const { sheet, rows } = await getSheetRows();
+    if (!sheet || !rows) return { success: false, message: "Database unavailable" };
+    
+    if (!sheet.headerValues) await sheet.loadHeaderRow();
+    const headers = sheet.headerValues;
+
+    const KEY_CLIENT = findColumnKey(headers, "CLIENT #");
+    if (!KEY_CLIENT) return { success: false, message: "System Error: No ID column" };
+
+    const match = rows.find(r => String(r.get(KEY_CLIENT!)).trim().toUpperCase() === refCode.trim().toUpperCase());
+
+    if (!match) return { success: false, message: "Booking Reference not found." };
+
+    // Map fields back to form data
+    const KEY_BRANCH = findColumnKey(headers, "BRANCH");
+    const KEY_DATE = findColumnKey(headers, "DATE");
+    const KEY_FIRST = findColumnKey(headers, "FULL NAME"); 
+    const KEY_PHONE = findColumnKey(headers, "Contact Number");
+    const KEY_FB = findColumnKey(headers, "FACEBOOK NAME");
+    const KEY_SESSION = findColumnKey(headers, "SESSION");
+    const KEY_SERVICES = findColumnKey(headers, "SERVICES");
+
+    const fullName = KEY_FIRST ? String(match.get(KEY_FIRST)) : "";
+    const nameParts = fullName.split(' ');
+    const lastName = nameParts.length > 1 ? nameParts.pop() || "" : "";
+    const firstName = nameParts.join(' ') || fullName;
+
+    const rawDate = KEY_DATE ? match.get(KEY_DATE) : "";
+    const normalizedDate = normalizeDate(rawDate, new Date().getFullYear()); 
+
+    // Reverse Map Branch Code to Name
+    const { BRANCH_MAP } = await getDynamicConfig();
+    const rawBranch = KEY_BRANCH ? match.get(KEY_BRANCH) : "";
+    const branchName = Object.keys(BRANCH_MAP).find(key => BRANCH_MAP[key] === rawBranch) || rawBranch;
+
+    return {
+      success: true,
+      data: {
+        firstName,
+        lastName,
+        phone: KEY_PHONE ? match.get(KEY_PHONE) : "",
+        fbLink: KEY_FB ? match.get(KEY_FB) : "",
+        branch: String(branchName), 
+        date: normalizedDate, 
+        session: KEY_SESSION ? match.get(KEY_SESSION) : "1ST",
+        services: KEY_SERVICES ? match.get(KEY_SERVICES) : ""
+      }
+    };
+  } catch (error) {
+    console.error("Lookup Error:", error);
+    return { success: false, message: "Error finding booking." };
+  }
+}
+
 // --- SUBMIT BOOKING ---
 const formSchema = z.object({
   type: z.string().optional(),
+  oldRefCode: z.string().optional(), 
   branch: z.string().min(1),
   session: z.string().min(1),
   date: z.string().min(1),
@@ -174,23 +223,24 @@ export async function submitBooking(prevState: any, formData: FormData) {
   const servicesString = servicesRaw.map(s => String(s)).join(', ');
 
   const rawData = {
-    type: formData.get('type') || "New Appointment", 
-    branch: formData.get('branch') || "",
-    session: formData.get('session') || "",
-    date: formData.get('date') || "",
-    time: formData.get('time') || "",
+    type: String(formData.get('type') || "New Appointment"), 
+    oldRefCode: String(formData.get('oldRefCode') || ""),
+    branch: String(formData.get('branch') || ""),
+    session: String(formData.get('session') || ""),
+    date: String(formData.get('date') || ""),
+    time: String(formData.get('time') || ""),
     services: servicesRaw, 
-    fbLink: formData.get('fbLink') || "", 
-    firstName: formData.get('firstName') || "",
-    lastName: formData.get('lastName') || "",
-    phone: formData.get('phone') || "",
-    others: formData.get('others') || "",
-    ack: formData.get('ack') || "NO ACK",
-    mop: formData.get('mop') || "Cash",
+    fbLink: String(formData.get('fbLink') || ""), 
+    firstName: String(formData.get('firstName') || ""),
+    lastName: String(formData.get('lastName') || ""),
+    phone: String(formData.get('phone') || ""),
+    others: String(formData.get('others') || ""),
+    ack: (formData.get('ack') as "ACK" | "NO ACK") || "NO ACK",
+    mop: (formData.get('mop') as any) || "Cash",
   };
 
   const validated = formSchema.safeParse(rawData);
-  if (!validated.success) return { success: false, message: validated.error.issues[0].message };
+  if (!validated.success) return { success: false, message: validated.error.issues[0].message, refCode: '' };
 
   try {
     const data = validated.data;
@@ -203,32 +253,40 @@ export async function submitBooking(prevState: any, formData: FormData) {
     // PREPARE DATA
     const bookingDateObj = new Date(data.date);
     const targetYear = bookingDateObj.getFullYear();
-
     const targetDate = normalizeDate(data.date, targetYear);
+    
     const shortBranch = BRANCH_MAP[data.branch] || data.branch;
     const targetShortBranch = normalizeStr(shortBranch);
     const targetFullBranch = normalizeStr(data.branch);
     const limit = BRANCH_LIMITS[shortBranch] || 4;
     const displayTime = data.time.split(' - ')[0].trim();
+    const cleanTargetTime = getCleanTime(data.time);
 
     // AVAILABILITY CHECK
     const KEY_BRANCH = findColumnKey(headers, "BRANCH");
     const KEY_DATE = findColumnKey(headers, "DATE");
     const KEY_TIME = findColumnKey(headers, "TIME");
+    const KEY_CLIENT = findColumnKey(headers, "CLIENT #");
     
+    // Check Limits
     let slotCount = 0;
-    
     if (rows && KEY_BRANCH && KEY_DATE && KEY_TIME) {
         for (let i = 0; i < rows.length; i++) {
           const row = rows[i];
-          // [FIX] Pass targetYear here too for Booking Limits
-          const rDate = normalizeDate(row.get(KEY_DATE), targetYear);
-          const rBranch = normalizeStr(row.get(KEY_BRANCH));
-          const rTime = getCleanTime(row.get(KEY_TIME));
+          const rDate = normalizeDate(row.get(KEY_DATE!), targetYear);
+          const rBranch = normalizeStr(row.get(KEY_BRANCH!));
+          const rTime = getCleanTime(row.get(KEY_TIME!));
 
           if ((rBranch === targetShortBranch || rBranch === targetFullBranch) && 
               rDate === targetDate && 
-              rTime === getCleanTime(data.time)) {
+              rTime === cleanTargetTime) {
+            
+            // If Rescheduling, Ignore the OLD booking in the count
+            if (data.type === 'Reschedule' && data.oldRefCode && KEY_CLIENT) {
+               const rRef = String(row.get(KEY_CLIENT)).trim();
+               if (rRef === String(data.oldRefCode).trim()) continue; 
+            }
+            
             slotCount++;
           }
         }
@@ -237,22 +295,32 @@ export async function submitBooking(prevState: any, formData: FormData) {
     if (slotCount >= limit) {
       return { 
         success: false, 
-        message: `Sorry! The ${displayTime} slot at ${data.branch} is full (Max ${limit}).` 
+        message: `Sorry! The ${displayTime} slot at ${data.branch} is full (Max ${limit}).`,
+        refCode: ''
       };
     }
 
-    // GENERATE UNIQUE REFERENCE ID
-    const refCode = generateRefCode();
+    // --- RESCHEDULE LOGIC: DELETE OLD ENTRY ---
+    let finalRefCode = generateRefCode();
+    
+    if (data.type === 'Reschedule' && data.oldRefCode && KEY_CLIENT) {
+       // Find and delete old row
+       const rowToDelete = rows?.find(r => String(r.get(KEY_CLIENT!)).trim() === String(data.oldRefCode).trim());
+       if (rowToDelete) {
+         await rowToDelete.delete();
+         finalRefCode = String(data.oldRefCode).trim(); // PRESERVE ID
+       }
+    }
 
-    // WRITE TO SHEET
+    // WRITE NEW ROW
     const desiredData: Record<string, string> = {
       "BRANCH": shortBranch,
       "FACEBOOK NAME": data.fbLink || "",
       "FULL NAME": `${data.firstName} ${data.lastName}`,
       "Contact Number": data.phone,
-      "DATE": normalizeSheetDate(data.date), // Save as "Jan-28"
+      "DATE": normalizeSheetDate(data.date), 
       "TIME": displayTime,
-      "CLIENT #": refCode, // [FIX] Insert Unique ID
+      "CLIENT #": finalRefCode, 
       "SERVICES": servicesString,
       "SESSION": data.session,
       "STATUS": "Pending",
@@ -270,38 +338,11 @@ export async function submitBooking(prevState: any, formData: FormData) {
 
     await sheet.addRow(rowPayload);
     
-    // Return the Ref Code so the UI can display it
-    return { success: true, message: "Booking Confirmed! See you there.", refCode };
+    return { success: true, message: "Booking Confirmed! See you there.", refCode: finalRefCode };
 
   } catch (error) {
     console.error("Sheet Error:", error);
     const msg = error instanceof Error ? error.message : "System Busy";
-    return { success: false, message: `System Error: ${msg}` };
-  }
-}
-
-// --- RESCHEDULE UTILITY (To be called when user confirms reschedule) ---
-export async function cancelBooking(refCode: string) {
-  if (!refCode) return { success: false, message: "No Reference Code provided" };
-
-  try {
-    const { sheet, rows } = await getSheetRows();
-    if (!sheet) throw new Error("Database Unavailable");
-    if (!sheet.headerValues) await sheet.loadHeaderRow();
-    
-    const KEY_CLIENT_NUM = findColumnKey(sheet.headerValues, "CLIENT #");
-    if (!KEY_CLIENT_NUM) throw new Error("CLIENT # column not found");
-
-    const rowToDelete = rows.find(r => String(r.get(KEY_CLIENT_NUM)).trim() === refCode.trim());
-
-    if (rowToDelete) {
-      await rowToDelete.delete();
-      return { success: true, message: "Old booking removed." };
-    } else {
-      return { success: false, message: "Booking not found." };
-    }
-  } catch (error) {
-    console.error("Cancel Error:", error);
-    return { success: false, message: "Failed to remove old booking." };
+    return { success: false, message: `System Error: ${msg}`, refCode: '' };
   }
 }

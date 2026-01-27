@@ -1,10 +1,9 @@
-import { Check, Copy, Scissors, RotateCcw, Calendar, MapPin } from 'lucide-react';
+import { Check, Copy, Scissors, RotateCcw, MapPin } from 'lucide-react';
 
-export default function Ticket({ data }: { data: any }) {
+export default function Ticket({ data, refCode }: { data: any, refCode: string }) {
   if (!data) return null;
   
   const isReschedule = data.type === 'Reschedule';
-  const refCode = Math.random().toString(36).substr(2, 6).toUpperCase();
 
   const formatDate = (dateStr: string) => {
     if (!dateStr) return '';
