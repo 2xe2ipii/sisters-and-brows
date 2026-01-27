@@ -1,4 +1,4 @@
-import { Check, MapPin, Calendar, CreditCard, Scissors } from 'lucide-react';
+import { Check, MapPin, Calendar, CreditCard, Scissors, Receipt } from 'lucide-react';
 
 export default function Ticket({ data }: { data: any }) {
   if (!data) return null;
@@ -34,6 +34,19 @@ export default function Ticket({ data }: { data: any }) {
         {/* Details Section */}
         <div className="p-8 space-y-5 bg-white">
           
+          {/* Booking Type (NEW) */}
+          <div className="flex items-start gap-4 pb-5 border-b border-dashed border-slate-100">
+             <div className="p-2 bg-amber-50 rounded-lg shrink-0">
+               <Receipt className="w-5 h-5 text-amber-500" />
+             </div>
+             <div>
+               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Booking Type</p>
+               <span className={`text-sm font-bold px-2 py-0.5 rounded-md ${data.type === 'Reschedule' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-700'}`}>
+                 {data.type || "New Appointment"}
+               </span>
+             </div>
+          </div>
+
           <div className="flex items-start gap-4">
              <div className="p-2 bg-rose-50/50 rounded-lg shrink-0">
                <Calendar className="w-5 h-5 text-rose-400" />
@@ -56,7 +69,6 @@ export default function Ticket({ data }: { data: any }) {
              </div>
           </div>
 
-          {/* NEW: Services Section */}
           <div className="flex items-start gap-4">
              <div className="p-2 bg-rose-50/50 rounded-lg shrink-0">
                <Scissors className="w-5 h-5 text-rose-400" />
@@ -73,7 +85,6 @@ export default function Ticket({ data }: { data: any }) {
              </div>
           </div>
 
-          {/* Payment & ACK Section */}
           <div className="flex items-start gap-4">
              <div className="p-2 bg-rose-50/50 rounded-lg shrink-0">
                <CreditCard className="w-5 h-5 text-rose-400" />
@@ -101,10 +112,10 @@ export default function Ticket({ data }: { data: any }) {
         </div>
       </div>
 
-      {/* Action Button */}
+      {/* Action Button (New Dark Style) */}
       <button 
         onClick={() => window.location.reload()}
-        className="mt-8 px-6 py-2 rounded-full text-xs font-bold text-rose-500 bg-rose-50 hover:bg-rose-100 transition-colors uppercase tracking-widest"
+        className="mt-8 px-8 py-3 rounded-xl text-sm font-bold text-white bg-slate-900 shadow-lg shadow-slate-200 hover:scale-105 active:scale-95 transition-all"
       >
         Book Another Appointment
       </button>

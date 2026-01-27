@@ -1,6 +1,6 @@
 'use client'
 
-import { MapPin, Calendar, Clock, CreditCard, Receipt, Edit2, CheckCircle2 } from 'lucide-react';
+import { MapPin, Calendar, CreditCard, Receipt, Edit2, CheckCircle2 } from 'lucide-react';
 import { useFormStatus } from 'react-dom';
 
 interface ReviewSummaryProps {
@@ -13,7 +13,7 @@ export default function ReviewSummary({ data, onEdit }: ReviewSummaryProps) {
   const servicesList = Array.isArray(data.services) ? data.services : [data.services];
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500 pb-24">
+    <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500 pb-28">
       
       {/* Header */}
       <div className="px-2 flex justify-between items-center">
@@ -104,19 +104,21 @@ export default function ReviewSummary({ data, onEdit }: ReviewSummaryProps) {
         </div>
       </div>
 
-      {/* Sticky Bottom Button */}
-      <div className="fixed bottom-0 left-0 w-full bg-white border-t border-slate-100 p-4 z-50">
-        <button 
-          type="submit" 
-          disabled={pending}
-          className="w-full py-4 rounded-2xl font-bold text-white bg-[#0f172a] shadow-lg shadow-slate-200 disabled:bg-slate-300 disabled:cursor-not-allowed flex justify-center items-center gap-2 active:scale-95 transition-all"
-        >
-          {pending ? (
-            <>Confirming...</>
-          ) : (
-            <>Confirm Booking <CheckCircle2 className="w-5 h-5" /></>
-          )}
-        </button>
+      {/* Sticky Bottom Button Container (Fixed to Viewport Bottom, but constrained Width) */}
+      <div className="fixed bottom-0 left-0 w-full z-50 flex justify-center pointer-events-none">
+        <div className="w-full max-w-md bg-white border-t border-slate-100 p-4 pointer-events-auto shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)]">
+          <button 
+            type="submit" 
+            disabled={pending}
+            className="w-full py-4 rounded-2xl font-bold text-white bg-[#0f172a] shadow-lg shadow-slate-200 disabled:bg-slate-300 disabled:cursor-not-allowed flex justify-center items-center gap-2 active:scale-95 transition-all"
+          >
+            {pending ? (
+              <>Confirming...</>
+            ) : (
+              <>Confirm Booking <CheckCircle2 className="w-5 h-5" /></>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );
