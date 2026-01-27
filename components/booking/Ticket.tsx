@@ -1,4 +1,5 @@
-import { Check, Copy, Scissors, RotateCcw, Calendar, MapPin, User } from 'lucide-react';
+import { CheckCircle2, MapPin, Calendar, Clock, Sparkles, Copy, Scissors, Package, CreditCard, User } from 'lucide-react';
+import Image from 'next/image';
 
 interface TicketProps {
   data: any;
@@ -7,112 +8,170 @@ interface TicketProps {
 
 export default function Ticket({ data, refCode }: TicketProps) {
   if (!data) return null;
-  
-  const isReschedule = data.type === 'Reschedule';
-  
-  // Format Date Nicely
-  const formatDate = (dateStr: string) => {
-    if (!dateStr) return '';
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-  };
 
-  const servicesList = data.SERVICES 
-     ? data.SERVICES.split(',') 
-     : (Array.isArray(data.services) ? data.services : [data.services]);
+  // Helper to safely get data regardless of casing from different sources
+  const get = (key: string) => data[key] || data[key.toUpperCase()] || data[key.toLowerCase()] || "";
 
-  // Theme Config
-  const theme = isReschedule 
-    ? { bg: 'bg-amber-500', text: 'text-amber-600', border: 'border-amber-100', pill: 'bg-amber-100 text-amber-700' }
-    : { bg: 'bg-rose-500', text: 'text-rose-600', border: 'border-rose-100', pill: 'bg-rose-100 text-rose-700' };
+  const servicesRaw = get('SERVICES');
+  const services = servicesRaw ? servicesRaw.split(',') : [];
+  
+  const isReschedule = get('TYPE') === 'Reschedule';
 
   return (
-    <div className="min-h-screen w-full flex flex-col items-center justify-center p-4 bg-slate-100">
+    <div className="min-h-screen w-full bg-[#f8fafc] flex items-center justify-center p-4">
       
-      {/* TICKET CARD */}
-      <div className="w-full max-w-[400px] bg-white rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-500">
+      {/* TICKET CONTAINER - Max width constrained to look like a phone receipt */}
+      <div className="w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-100 relative">
         
-        {/* HEADER */}
-        <div className={`${theme.bg} p-6 flex flex-col items-center text-center text-white relative`}>
-            {/* Status Icon */}
-            <div className="mb-3 p-3 bg-white/20 backdrop-blur-md rounded-full shadow-sm">
-                {isReschedule ? <RotateCcw className="w-8 h-8 text-white" /> : <Check className="w-8 h-8 text-white" />}
+        {/* TOP: BRAND HEADER (Dark) */}
+        <div className="bg-[#202124] p-6 text-center relative overflow-hidden">
+            {/* Background Pattern */}
+            <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
+                <div className="absolute right-[-20px] top-[-20px] w-24 h-24 rounded-full border-4 border-white/20"></div>
+                <div className="absolute left-[-20px] bottom-[-20px] w-16 h-16 rounded-full border-4 border-white/20"></div>
             </div>
-            <h1 className="text-3xl font-black tracking-tight uppercase">
-                {isReschedule ? 'Rescheduled' : 'Confirmed'}
-            </h1>
-            <p className="opacity-90 font-medium text-sm mt-1">Sisters & Brows Booking</p>
+
+            <div className="relative z-10 flex flex-col items-center">
+                <div className="w-12 h-12 rounded-full border-2 border-[#e6c200] overflow-hidden mb-3 relative shadow-lg">
+                   <Image 
+                     src="/logo.jpg" 
+                     alt="Logo" 
+                     fill
+                     className="object-cover"
+                   />
+                </div>
+                <h1 className="text-[#e6c200] font-extrabold text-xl tracking-wide uppercase">Sisters & Brows</h1>
+                <div className="mt-2 inline-flex items-center gap-1.5 bg-white/10 px-3 py-1 rounded-full backdrop-blur-sm border border-white/10">
+                    <CheckCircle2 className="w-3 h-3 text-[#e6c200]" />
+                    <span className="text-[10px] font-bold text-white uppercase tracking-wider">
+                        {isReschedule ? 'Rescheduled' : 'Booking Confirmed'}
+                    </span>
+                </div>
+            </div>
         </div>
 
-        {/* BODY */}
-        <div className="p-6 space-y-6">
+        {/* MIDDLE: DETAILS (White) */}
+        <div className="p-6 space-y-5">
             
-            {/* TIME & DATE (Hero Info) */}
-            <div className="text-center border-b-2 border-dashed border-slate-100 pb-6">
-                <h2 className="text-5xl font-black text-slate-900 tracking-tighter mb-2">
-                    {String(data.TIME || data.time).split('-')[0].trim()}
-                </h2>
-                <div className="flex items-center justify-center gap-2 text-slate-500 font-bold uppercase tracking-wider text-sm">
-                    <Calendar className="w-4 h-4" />
-                    {formatDate(data.DATE || data.date)}
+            {/* HERO ROW: Date & Time */}
+            <div className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                <div className="flex items-center gap-3">
+                    <div className="bg-white p-2.5 rounded-xl shadow-sm border border-slate-100">
+                        <Calendar className="w-5 h-5 text-[#202124]" />
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Date</p>
+                        <p className="text-sm font-black text-slate-900">{get('DATE')}</p>
+                    </div>
+                </div>
+                <div className="w-px h-8 bg-slate-200"></div>
+                <div className="flex items-center gap-3">
+                    <div>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider text-right">Time</p>
+                        <p className="text-sm font-black text-slate-900 text-right">{get('TIME')}</p>
+                    </div>
+                    <div className="bg-white p-2.5 rounded-xl shadow-sm border border-slate-100">
+                        <Clock className="w-5 h-5 text-[#202124]" />
+                    </div>
                 </div>
             </div>
 
-            {/* SESSION & TYPE PILLS */}
-            <div className="flex justify-center gap-3">
-                 <span className={`px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest ${theme.pill}`}>
-                    {data.SESSION || data.session} Session
-                 </span>
-                 <span className="px-4 py-1.5 rounded-full bg-slate-100 text-slate-600 text-xs font-black uppercase tracking-widest">
-                    {data.BRANCH || data.branch}
-                 </span>
-            </div>
-
-            {/* DETAILS */}
-            <div className="space-y-4 pt-2">
-                 <div className="flex items-start gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                    <User className={`w-5 h-5 mt-0.5 ${theme.text}`} />
-                    <div>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Guest</p>
-                        <p className="text-lg font-bold text-slate-900">{data["FULL NAME"] || data.firstName + ' ' + data.lastName}</p>
+            {/* INFO GRID */}
+            <div className="grid grid-cols-2 gap-y-4 gap-x-2">
+                
+                {/* Branch */}
+                <div className="space-y-0.5">
+                    <div className="flex items-center gap-1.5 mb-1">
+                        <MapPin className="w-3 h-3 text-[#e6c200]" />
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">Branch</span>
                     </div>
-                 </div>
+                    <p className="text-xs font-bold text-slate-800 pl-4">{get('BRANCH')}</p>
+                </div>
 
-                 <div className="flex items-start gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                    <Scissors className={`w-5 h-5 mt-0.5 ${theme.text}`} />
-                    <div>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Services</p>
-                        <div className="flex flex-wrap gap-1">
-                            {servicesList.map((s: string, i: number) => (
-                                <span key={i} className="text-sm font-bold text-slate-800 leading-tight">
-                                    {s}{i < servicesList.length - 1 ? ',' : ''}
-                                </span>
-                            ))}
-                        </div>
+                {/* Session */}
+                <div className="space-y-0.5">
+                     <div className="flex items-center gap-1.5 mb-1">
+                        <Sparkles className="w-3 h-3 text-[#e6c200]" />
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">Session</span>
                     </div>
-                 </div>
+                    <p className="text-xs font-bold text-slate-800 pl-4">{get('SESSION')}</p>
+                </div>
+
+                {/* Client Name */}
+                <div className="space-y-0.5 col-span-2 pt-2 border-t border-dashed border-slate-200">
+                     <div className="flex items-center gap-1.5 mb-1">
+                        <User className="w-3 h-3 text-[#e6c200]" />
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">Client Name</span>
+                    </div>
+                    <p className="text-sm font-bold text-slate-900 pl-4">{get('FULL NAME')}</p>
+                    <p className="text-[10px] font-medium text-slate-500 pl-4">{get('Contact Number')}</p>
+                </div>
+
+                {/* SERVICES (Full Width) */}
+                <div className="col-span-2 pt-2 border-t border-dashed border-slate-200 space-y-1">
+                     <div className="flex items-center gap-1.5 mb-1">
+                        <Scissors className="w-3 h-3 text-[#e6c200]" />
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">Services</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1 pl-4">
+                        {services.map((s: string, i: number) => (
+                            <span key={i} className="inline-block bg-[#fffdf5] border border-[#e6c200] text-[#202124] text-[10px] font-bold px-2 py-0.5 rounded-md">
+                                {s.trim()}
+                            </span>
+                        ))}
+                    </div>
+                </div>
+
+                {/* ADMIN CHECK (MOP & ACK) */}
+                <div className="col-span-2 grid grid-cols-2 gap-2 mt-2">
+                    <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 flex items-center gap-2">
+                         <div className="bg-white p-1.5 rounded-md shadow-sm">
+                            <CreditCard className="w-3 h-3 text-[#e6c200]" />
+                         </div>
+                         <div>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase">Payment</p>
+                            <p className="text-xs font-bold text-slate-900">{get('M O P')}</p>
+                         </div>
+                    </div>
+                    <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 flex items-center gap-2">
+                         <div className="bg-white p-1.5 rounded-md shadow-sm">
+                            <Package className="w-3 h-3 text-[#e6c200]" />
+                         </div>
+                         <div>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase">After Care</p>
+                            <p className="text-xs font-bold text-slate-900">{get('ACK?') === 'ACK' ? 'Yes (+Kit)' : 'No'}</p>
+                         </div>
+                    </div>
+                </div>
+
             </div>
         </div>
 
-        {/* FOOTER (Ref Code) */}
-        <div className="bg-slate-900 p-4 flex items-center justify-between">
-            <div>
-                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Reference ID</p>
-                <p className="text-white font-mono font-bold text-lg tracking-widest">{refCode}</p>
+        {/* BOTTOM: CUTOUT SECTION */}
+        <div className="relative bg-[#202124] p-6">
+            {/* Cutout Circles */}
+            <div className="absolute top-[-12px] left-[-12px] w-6 h-6 bg-[#f8fafc] rounded-full"></div>
+            <div className="absolute top-[-12px] right-[-12px] w-6 h-6 bg-[#f8fafc] rounded-full"></div>
+            
+            {/* Dashed Line */}
+            <div className="absolute top-0 left-4 right-4 border-t-2 border-dashed border-white/20"></div>
+
+            <div className="flex justify-between items-center mt-2">
+                <div className="space-y-1">
+                    <p className="text-[10px] text-[#e6c200] font-bold uppercase tracking-widest">Reference ID</p>
+                    <p className="text-2xl font-mono font-black text-white tracking-wider">{refCode}</p>
+                </div>
+                <div className="bg-white/10 p-2 rounded-xl border border-white/10">
+                    <Copy className="w-5 h-5 text-[#e6c200]" />
+                </div>
             </div>
-            <button className="bg-white/10 p-2 rounded-lg hover:bg-white/20 transition-colors">
-                <Copy className="w-5 h-5 text-white" />
-            </button>
+            
+            <p className="text-center text-[9px] text-slate-500 mt-4 font-medium">
+                Please take a screenshot of this ticket and send it to our Facebook Page to confirm your slot.
+            </p>
         </div>
+
       </div>
-      
-      <button 
-        onClick={() => window.location.reload()}
-        className="mt-8 px-6 py-3 rounded-full bg-white shadow-sm border border-slate-200 text-slate-600 text-xs font-bold uppercase tracking-widest hover:bg-slate-50 transition-all"
-      >
-        Book Another
-      </button>
-
     </div>
   );
 }

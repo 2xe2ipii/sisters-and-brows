@@ -81,7 +81,7 @@ export default function TimeSlotGrid({
 
                 <div className={`p-4 relative z-10 transition-colors duration-300 flex items-center justify-between ${isFull ? 'text-slate-400' : 'text-slate-700 peer-checked:text-white'}`}>
                   <span className="font-bold text-sm">{slot}</span>
-                  {isFull && <span className="text-[10px] font-bold uppercase tracking-wider">Full</span>}
+                  {/* {isFull && <span className="text-[10px] font-bold uppercase tracking-wider">Full</span>} */}
                 </div>
               </label>
             );

@@ -4,7 +4,8 @@ import { z } from 'zod';
 import { 
   getAllServices, 
   getAppConfig, 
-  getSheetRows 
+  getSheetRows,
+  getDoc 
 } from '@/lib/googleSheets';
 
 // --- TYPES ---
@@ -64,10 +65,8 @@ function normalizeStr(str: any): string {
 
 function normalizeDate(raw: any, targetYear?: number): string {
   if (!raw) return "";
-  // 1. Clean string
   let str = String(raw).trim().replace(/-/g, ' '); 
   
-  // 2. Handle "Jan 28" pattern
   const match = str.match(/^([A-Za-z]+)[\s-]?(\d{1,2})$/);
   if (match) {
     const month = match[1];
@@ -90,16 +89,20 @@ function normalizeDate(raw: any, targetYear?: number): string {
 
 function normalizeSheetDate(isoDate: string): string {
   if (!isoDate) return "";
-  const d = new Date(isoDate);
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  return `${months[d.getMonth()]}-${d.getDate()}`;
+  const parts = isoDate.split('-');
+  if (parts.length === 3) {
+     const monthIndex = parseInt(parts[1], 10) - 1;
+     const day = parseInt(parts[2], 10);
+     const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+     return `${months[monthIndex]}-${day}`;
+  }
+  return isoDate;
 }
 
-// STRICT TIME CLEANER (Removes all spaces/colons)
 function getStrictTime(timeStr: any): string { 
   if (!timeStr) return "";
   const firstPart = String(timeStr).split('-')[0]; 
-  return firstPart.replace(/[^a-zA-Z0-9]/g, '').toLowerCase(); 
+  return firstPart.replace(/[\s\u200B\u202F\u00A0]/g, '').toLowerCase(); 
 }
 
 function findColumnKey(headers: string[], keyword: string): string | undefined {
@@ -113,38 +116,53 @@ export async function getSlotAvailability(date: string, branch: string) {
   const { BRANCH_MAP, BRANCH_LIMITS } = await getDynamicConfig();
   
   try {
-    const { sheet, rows } = await getSheetRows();
-    if (!sheet) return { success: false, counts: {}, limit: 4 };
+    const doc = await getDoc();
+    const rawSheet = doc.sheetsByTitle["Raw_Intake"];
+    
+    if (!rawSheet) return { success: false, counts: {}, limit: 4 };
 
-    if (!sheet.headerValues) await sheet.loadHeaderRow();
-    const headers = sheet.headerValues;
+    await rawSheet.loadHeaderRow(); 
+    const rows = await rawSheet.getRows();
+    const headers = rawSheet.headerValues;
+
+    const uniqueBookings: Record<string, Set<string>> = {};
+    const limit = BRANCH_LIMITS[BRANCH_MAP[branch] || branch] || 4;
+
+    const requestedDateObj = new Date(date);
+    const targetYear = requestedDateObj.getFullYear();
+    const targetDate = normalizeDate(date, targetYear);
+    const targetFullBranch = normalizeStr(branch);
+    const targetShortBranch = normalizeStr(BRANCH_MAP[branch] || branch);
 
     const KEY_BRANCH = findColumnKey(headers, "BRANCH");
     const KEY_DATE = findColumnKey(headers, "DATE");
     const KEY_TIME = findColumnKey(headers, "TIME");
+    const KEY_CLIENT = findColumnKey(headers, "CLIENT #");
+
+    if (KEY_BRANCH && KEY_DATE && KEY_TIME) {
+        rows.forEach((row) => {
+            const rDate = normalizeDate(String(row.get(KEY_DATE) || ""), targetYear);
+            const rBranch = normalizeStr(String(row.get(KEY_BRANCH) || ""));
+            const rTimeStrict = getStrictTime(String(row.get(KEY_TIME) || ""));
+            
+            const refCode = KEY_CLIENT ? String(row.get(KEY_CLIENT) || "").trim().toUpperCase() : `NOID_${Math.random()}`;
+
+            if ((rBranch === targetShortBranch || rBranch === targetFullBranch) && rDate === targetDate) {
+                if (!uniqueBookings[rTimeStrict]) {
+                    uniqueBookings[rTimeStrict] = new Set();
+                }
+                if (refCode.length > 1) {
+                    uniqueBookings[rTimeStrict].add(refCode);
+                }
+            }
+        });
+    }
 
     const counts: Record<string, number> = {};
-    
-    const requestedDateObj = new Date(date);
-    const targetYear = requestedDateObj.getFullYear();
-    const targetDate = normalizeDate(date, targetYear);
-    
-    const targetFullBranch = normalizeStr(branch);
-    const targetShortBranch = normalizeStr(BRANCH_MAP[branch] || branch);
-    const limit = BRANCH_LIMITS[BRANCH_MAP[branch] || branch] || 4;
+    Object.keys(uniqueBookings).forEach(timeKey => {
+        counts[timeKey] = uniqueBookings[timeKey].size;
+    });
 
-    if (rows && KEY_BRANCH && KEY_DATE && KEY_TIME) {
-      rows.forEach((row) => {
-        // Safe string conversions
-        const rDate = normalizeDate(String(row.get(KEY_DATE) || ""), targetYear);
-        const rBranch = normalizeStr(String(row.get(KEY_BRANCH) || ""));
-        const rTimeStrict = getStrictTime(String(row.get(KEY_TIME) || ""));
-
-        if ((rBranch === targetShortBranch || rBranch === targetFullBranch) && rDate === targetDate) {
-           counts[rTimeStrict] = (counts[rTimeStrict] || 0) + 1;
-        }
-      });
-    }
     return { success: true, counts, limit };
   } catch (error) {
     console.error("Availability Error:", error);
@@ -253,54 +271,102 @@ export async function submitBooking(prevState: any, formData: FormData): Promise
 
   try {
     const data = validated.data;
-    const { sheet, rows } = await getSheetRows();
-    if (!sheet) throw new Error("Database Sheet Missing");
-    
-    if (!sheet.headerValues) await sheet.loadHeaderRow();
-    const headers = sheet.headerValues;
+    const doc = await getDoc();
+    const rawSheet = doc.sheetsByTitle["Raw_Intake"];
+    if (!rawSheet) throw new Error("Database Sheet Missing");
 
-    // PREPARE DATA
+    await rawSheet.loadHeaderRow();
+    const rows = await rawSheet.getRows();
+    const headers = rawSheet.headerValues;
+
+    // --- PREPARATION ---
     const bookingDateObj = new Date(data.date);
     const targetYear = bookingDateObj.getFullYear();
     const targetDate = normalizeDate(data.date, targetYear);
-    
     const shortBranch = BRANCH_MAP[data.branch] || data.branch;
     const targetShortBranch = normalizeStr(shortBranch);
     const targetFullBranch = normalizeStr(data.branch);
-    const limit = BRANCH_LIMITS[shortBranch] || 4;
-    const displayTime = data.time.split(' - ')[0].trim();
-    const cleanTargetTime = getStrictTime(data.time); 
+    const cleanTargetTime = getStrictTime(data.time);
+    const fullNameInput = normalizeStr(`${data.firstName} ${data.lastName}`);
 
-    // AVAILABILITY CHECK
     const KEY_BRANCH = findColumnKey(headers, "BRANCH");
     const KEY_DATE = findColumnKey(headers, "DATE");
     const KEY_TIME = findColumnKey(headers, "TIME");
     const KEY_CLIENT = findColumnKey(headers, "CLIENT #");
-    
-    let slotCount = 0;
-    if (rows && KEY_BRANCH && KEY_DATE && KEY_TIME) {
-        for (let i = 0; i < rows.length; i++) {
-          const row = rows[i];
-          const rDate = normalizeDate(String(row.get(KEY_DATE) || ""), targetYear);
-          const rBranch = normalizeStr(String(row.get(KEY_BRANCH) || ""));
-          const rTime = getStrictTime(String(row.get(KEY_TIME) || ""));
+    const KEY_FULLNAME = findColumnKey(headers, "FULL NAME");
+    const KEY_PHONE = findColumnKey(headers, "Contact Number");
+    const KEY_SERVICES = findColumnKey(headers, "SERVICES");
+    const KEY_SESSION = findColumnKey(headers, "SESSION");
 
-          if ((rBranch === targetShortBranch || rBranch === targetFullBranch) && 
-              rDate === targetDate && 
-              rTime === cleanTargetTime) {
+    // --- 1. SMART DUPLICATE CHECK ---
+    // Added KEY_PHONE to the check so TypeScript knows it is not undefined inside.
+    if (KEY_BRANCH && KEY_DATE && KEY_TIME && KEY_FULLNAME && KEY_CLIENT && KEY_PHONE) {
+        const duplicate = rows.find(row => {
+            const rDate = normalizeDate(String(row.get(KEY_DATE) || ""), targetYear);
+            const rBranch = normalizeStr(String(row.get(KEY_BRANCH) || ""));
+            const rTime = getStrictTime(String(row.get(KEY_TIME) || ""));
+            const rName = normalizeStr(String(row.get(KEY_FULLNAME) || ""));
             
-            // If Rescheduling, Ignore the OLD booking in the count
-            if (data.type === 'Reschedule' && data.oldRefCode && KEY_CLIENT) {
-               const rRef = String(row.get(KEY_CLIENT) || "").trim();
-               if (rRef.toUpperCase() === String(data.oldRefCode).trim().toUpperCase()) continue; 
-            }
-            
-            slotCount++;
-          }
+            // KEY_PHONE is now safe to use
+            const rPhone = normalizeStr(String(row.get(KEY_PHONE) || ""));
+
+            return (
+               (rBranch === targetShortBranch || rBranch === targetFullBranch) &&
+               rDate === targetDate &&
+               rTime === cleanTargetTime &&
+               (rName === fullNameInput || rPhone === normalizeStr(data.phone))
+            );
+        });
+
+        if (duplicate) {
+             const existingRef = String(duplicate.get(KEY_CLIENT) || "").trim();
+             
+             const existingData: Record<string, string> = {
+                "BRANCH": shortBranch,
+                "FULL NAME": `${data.firstName} ${data.lastName}`,
+                "DATE": normalizeSheetDate(data.date), 
+                "TIME": data.time.split(' - ')[0].trim(),
+                "CLIENT #": existingRef, 
+                // Use found keys for robust retrieval, defaulting to empty string
+                "SERVICES": KEY_SERVICES ? String(duplicate.get(KEY_SERVICES) || "") : "", 
+                "SESSION": KEY_SESSION ? String(duplicate.get(KEY_SESSION) || "") : "",
+             };
+
+             return { 
+                success: true, 
+                message: "Booking retrieved! You already have this slot.", 
+                refCode: existingRef, 
+                data: existingData 
+             };
         }
     }
 
-    if (slotCount >= limit) {
+    // --- 2. CHECK AVAILABILITY ---
+    const limit = BRANCH_LIMITS[shortBranch] || 4;
+    const uniqueBookings = new Set<string>();
+    
+    if (KEY_BRANCH && KEY_DATE && KEY_TIME) {
+        rows.forEach((row) => {
+            const rDate = normalizeDate(String(row.get(KEY_DATE) || ""), targetYear);
+            const rBranch = normalizeStr(String(row.get(KEY_BRANCH) || ""));
+            const rTime = getStrictTime(String(row.get(KEY_TIME) || ""));
+            const refCode = KEY_CLIENT ? String(row.get(KEY_CLIENT) || "").trim().toUpperCase() : `NOID_${Math.random()}`;
+
+            if ((rBranch === targetShortBranch || rBranch === targetFullBranch) && 
+                rDate === targetDate && 
+                rTime === cleanTargetTime) {
+                
+                if (data.type === 'Reschedule' && data.oldRefCode) {
+                    if (refCode === String(data.oldRefCode).trim().toUpperCase()) return; 
+                }
+
+                if (refCode.length > 1) uniqueBookings.add(refCode);
+            }
+        });
+    }
+
+    if (uniqueBookings.size >= limit) {
+      const displayTime = data.time.split(' - ')[0].trim();
       return { 
         success: false, 
         message: `Sorry! The ${displayTime} slot at ${data.branch} is full (Max ${limit}).`,
@@ -308,20 +374,25 @@ export async function submitBooking(prevState: any, formData: FormData): Promise
       };
     }
 
-    // --- RESCHEDULE LOGIC: DELETE OLD ENTRY ---
+    // --- 3. RESCHEDULE CLEANUP ---
     let finalRefCode = generateRefCode();
     
-    if (data.type === 'Reschedule' && data.oldRefCode && KEY_CLIENT) {
-       const rowToDelete = rows?.find(r => 
-         String(r.get(KEY_CLIENT) || "").trim().toUpperCase() === String(data.oldRefCode).trim().toUpperCase()
-       );
-       if (rowToDelete) {
-         await rowToDelete.delete();
-         finalRefCode = String(data.oldRefCode).trim(); // KEEP OLD ID
+    if (data.type === 'Reschedule' && data.oldRefCode) {
+       if (KEY_CLIENT) {
+          const rowToDelete = rows.find(r => 
+             String(r.get(KEY_CLIENT) || "").trim().toUpperCase() === String(data.oldRefCode).trim().toUpperCase()
+          );
+          if (rowToDelete) {
+             await rowToDelete.delete();
+             finalRefCode = String(data.oldRefCode).trim(); 
+          } else {
+             finalRefCode = String(data.oldRefCode).trim();
+          }
        }
     }
 
-    // WRITE NEW ROW
+    // --- 4. WRITE NEW ROW ---
+    const displayTime = data.time.split(' - ')[0].trim();
     const desiredData: Record<string, string> = {
       "BRANCH": shortBranch,
       "FACEBOOK NAME": data.fbLink || "",
@@ -345,7 +416,7 @@ export async function submitBooking(prevState: any, formData: FormData): Promise
       if (actualHeader) rowPayload[actualHeader] = value;
     });
 
-    await sheet.addRow(rowPayload);
+    await rawSheet.addRow(rowPayload);
     
     return { 
         success: true, 
