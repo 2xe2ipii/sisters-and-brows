@@ -1,4 +1,5 @@
-import { User, Phone, Facebook } from 'lucide-react';
+import { useState } from 'react';
+import { User, Phone, CreditCard, Facebook, Package } from 'lucide-react';
 
 interface GuestFormProps {
   initialData?: {
@@ -10,90 +11,106 @@ interface GuestFormProps {
 }
 
 export default function GuestForm({ initialData }: GuestFormProps) {
-  return (
-    <div className="space-y-4 animate-in fade-in duration-500">
-      
-      {/* Name Fields Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        
-        {/* First Name */}
-        <div className="space-y-1.5">
-           <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">
-             First Name <span className="text-rose-500">*</span>
-           </label>
-           <div className="relative group">
-              <User className="absolute left-3 top-3 w-4 h-4 text-slate-400 group-focus-within:text-[#e6c200] transition-colors" />
-              <input 
-                name="firstName" 
-                type="text"
-                required 
-                defaultValue={initialData?.firstName || ""}
-                className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-900 placeholder:text-slate-300 focus:ring-2 focus:ring-[#e6c200] focus:border-transparent outline-none transition-all shadow-sm group-hover:border-slate-300" 
-                placeholder="Jane" 
-              />
-           </div>
-        </div>
+  const [ack, setAck] = useState("NO ACK");
 
-        {/* Last Name */}
-        <div className="space-y-1.5">
-           <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">
-             Last Name <span className="text-rose-500">*</span>
-           </label>
-           <div className="relative group">
-              <User className="absolute left-3 top-3 w-4 h-4 text-slate-400 group-focus-within:text-[#e6c200] transition-colors" />
-              <input 
-                name="lastName" 
-                type="text"
-                required 
-                defaultValue={initialData?.lastName || ""}
-                className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-900 placeholder:text-slate-300 focus:ring-2 focus:ring-[#e6c200] focus:border-transparent outline-none transition-all shadow-sm group-hover:border-slate-300" 
-                placeholder="Doe" 
-              />
-           </div>
+  return (
+    <div className="space-y-5 animate-in fade-in duration-500">
+      
+      {/* ROW 1: Names */}
+      <div className="flex gap-4">
+        <div className="flex-1 space-y-1">
+           <label className="text-[10px] font-bold text-slate-500 uppercase">First Name</label>
+           <input 
+             name="firstName" 
+             type="text"
+             required 
+             defaultValue={initialData?.firstName || ""}
+             className="w-full px-3 py-3 rounded-lg border border-slate-200 bg-white text-sm font-bold text-slate-900 focus:ring-2 focus:ring-[#e6c200] focus:border-transparent outline-none transition-all" 
+           />
+        </div>
+        <div className="flex-1 space-y-1">
+           <label className="text-[10px] font-bold text-slate-500 uppercase">Last Name</label>
+           <input 
+             name="lastName" 
+             type="text"
+             required 
+             defaultValue={initialData?.lastName || ""}
+             className="w-full px-3 py-3 rounded-lg border border-slate-200 bg-white text-sm font-bold text-slate-900 focus:ring-2 focus:ring-[#e6c200] focus:border-transparent outline-none transition-all" 
+           />
         </div>
       </div>
 
-      {/* Phone Number */}
-      <div className="space-y-1.5">
-         <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">
-           Mobile Number <span className="text-rose-500">*</span>
-         </label>
-         <div className="relative group">
-            <Phone className="absolute left-3 top-3 w-4 h-4 text-slate-400 group-focus-within:text-[#e6c200] transition-colors" />
+      {/* ROW 2: Mobile */}
+      <div className="space-y-1">
+         <label className="text-[10px] font-bold text-slate-500 uppercase">Mobile Number (11 Digits)</label>
+         <div className="relative">
             <input 
               name="phone" 
               type="tel" 
+              pattern="09[0-9]{9}"
+              maxLength={11}
               required 
               defaultValue={initialData?.phone || ""}
-              className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-900 placeholder:text-slate-300 focus:ring-2 focus:ring-[#e6c200] focus:border-transparent outline-none transition-all shadow-sm group-hover:border-slate-300" 
-              placeholder="0912 345 6789" 
+              className="w-full px-3 py-3 rounded-lg border border-slate-200 bg-white text-sm font-bold text-slate-900 focus:ring-2 focus:ring-[#e6c200] focus:border-transparent outline-none transition-all tracking-widest" 
+              onInput={(e) => {
+                const target = e.target as HTMLInputElement;
+                target.value = target.value.replace(/[^0-9]/g, '').slice(0, 11);
+              }}
             />
          </div>
       </div>
 
-      {/* Facebook Link */}
-      <div className="space-y-1.5">
-         <div className="flex justify-between items-center">
-            <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">
-              Facebook Profile Link
-            </label>
-            <span className="text-[10px] font-bold text-slate-300 bg-slate-50 px-2 py-0.5 rounded-full border border-slate-100">
-              Optional
-            </span>
-         </div>
-         <div className="relative group">
-            <Facebook className="absolute left-3 top-3 w-4 h-4 text-slate-400 group-focus-within:text-[#0866ff] transition-colors" />
-            <input 
-              name="fbLink" 
-              type="url" 
-              defaultValue={initialData?.fbLink || ""}
-              className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-900 placeholder:text-slate-300 focus:ring-2 focus:ring-[#0866ff] focus:border-transparent outline-none transition-all shadow-sm group-hover:border-slate-300" 
-              placeholder="https://facebook.com/yourprofile" 
-            />
-         </div>
-         <p className="text-[10px] text-slate-400 ml-1">
-           Used for appointment reminders via Messenger.
-         </p>
+      {/* ROW 3: Facebook */}
+      <div className="space-y-1">
+         <label className="text-[10px] font-bold text-slate-500 uppercase flex justify-between">
+            <span>Facebook Profile</span>
+            <span className="text-slate-300 font-normal normal-case">Optional</span>
+         </label>
+         <input 
+           name="fbLink" 
+           type="url" 
+           defaultValue={initialData?.fbLink || ""}
+           className="w-full px-3 py-3 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-900 focus:ring-2 focus:ring-[#e6c200] focus:border-transparent outline-none transition-all" 
+         />
+      </div>
+
+      {/* ROW 4: Payment */}
+      <div className="space-y-1">
+          <label className="text-[10px] font-bold text-slate-500 uppercase">Payment Method</label>
+          <div className="relative">
+             <select 
+               name="mop" 
+               className="w-full px-3 py-3 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-900 focus:ring-2 focus:ring-[#e6c200] focus:border-transparent outline-none appearance-none cursor-pointer"
+             >
+               <option value="Cash">Cash</option>
+               <option value="G-Cash">GCash</option>
+               <option value="Maya">Maya</option>
+               <option value="Bank">Bank Transfer</option>
+               <option value="Other">Other</option>
+             </select>
+          </div>
+      </div>
+
+      {/* ROW 5: After Care Kit (Vertical) */}
+      <div className="space-y-2 pt-2">
+          <label className="text-[10px] font-bold text-slate-500 uppercase block text-center">Avail After Care Kit?</label>
+          <div className="flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={() => setAck("ACK")}
+              className={`w-full py-3 rounded-xl text-sm font-bold border transition-all flex items-center justify-center gap-2 ${ack === "ACK" ? "bg-[#e6c200] text-[#202124] border-[#e6c200] shadow-sm" : "bg-white text-slate-500 border-slate-200"}`}
+            >
+              <Package className="w-4 h-4"/> Yes, I need one
+            </button>
+            <button
+              type="button"
+              onClick={() => setAck("NO ACK")}
+              className={`w-full py-3 rounded-xl text-sm font-bold border transition-all ${ack === "NO ACK" ? "bg-[#202124] text-white border-[#202124]" : "bg-white text-slate-500 border-slate-200"}`}
+            >
+              No, I have my own
+            </button>
+            <input type="hidden" name="ack" value={ack} />
+          </div>
       </div>
 
     </div>
