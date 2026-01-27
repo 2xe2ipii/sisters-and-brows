@@ -67,7 +67,7 @@ export default function StartHere({
                className="w-full h-16 bg-[#202124] text-[#e6c200] rounded-xl text-base font-bold hover:bg-black disabled:opacity-50 flex items-center justify-center gap-2 transition-colors shadow-sm"
              >
                {lookupLoading ? <Loader2 className="w-5 h-5 animate-spin text-[#e6c200]"/> : <Search className="w-5 h-5 text-[#e6c200]" />}
-               Find
+               <span className="hidden sm:inline">Find</span>
              </button>
           </div>
           
