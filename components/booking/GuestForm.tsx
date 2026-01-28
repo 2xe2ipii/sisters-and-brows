@@ -10,6 +10,7 @@ interface GuestFormProps {
 export default function GuestForm({ initialData }: GuestFormProps) {
   const [others, setOthers] = useState<string[]>([]);
   const [newPerson, setNewPerson] = useState("");
+  const [phone, setPhone] = useState(initialData?.phone || "");
 
   const addPerson = () => {
     if (newPerson.trim()) {
@@ -20,6 +21,13 @@ export default function GuestForm({ initialData }: GuestFormProps) {
 
   const removePerson = (index: number) => {
     setOthers(others.filter((_, i) => i !== index));
+  };
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value.replace(/\D/g, ''); // Remove non-digits
+    if (val.length <= 11) {
+      setPhone(val);
+    }
   };
 
   return (
@@ -50,15 +58,16 @@ export default function GuestForm({ initialData }: GuestFormProps) {
         </div>
       </div>
 
-      <div className="relative">
+      <div className="relative max-w-[200px]"> {/* Shrink Container */}
         <Phone className="absolute left-3 top-3.5 w-4 h-4 text-slate-400" />
         <input 
           type="tel" 
           name="phone" 
-          placeholder="Contact Number" 
-          defaultValue={initialData?.phone}
+          placeholder="09xx..." 
+          value={phone}
+          onChange={handlePhoneChange}
           required 
-          className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#e6c200] focus:border-transparent outline-none transition-all text-sm font-bold text-slate-800 placeholder:text-slate-400"
+          className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#e6c200] focus:border-transparent outline-none transition-all text-sm font-bold text-slate-800 placeholder:text-slate-400 tracking-widest"
         />
       </div>
 
@@ -67,8 +76,9 @@ export default function GuestForm({ initialData }: GuestFormProps) {
         <input 
           type="text" 
           name="fbLink" 
-          placeholder="Facebook Profile Link (Optional)" 
+          placeholder="Facebook Name or Link (Required)" 
           defaultValue={initialData?.fbLink}
+          required 
           className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#e6c200] focus:border-transparent outline-none transition-all text-sm font-medium text-slate-800 placeholder:text-slate-400"
         />
       </div>
