@@ -10,6 +10,16 @@ interface TicketProps {
   refCode: string;
 }
 
+// Branch Code to Full Name Mapping
+const BRANCH_MAP: Record<string, string> = {
+  "PQ": "Parañaque, Metro Manila",
+  "LP": "Lipa, Batangas",
+  "SP": "San Pablo, Laguna",
+  "NV": "Novaliches, Quezon City",
+  "DM": "Dasmariñas, Cavite",
+  "TG": "Comembo, Taguig"
+};
+
 export default function Ticket({ data, refCode }: TicketProps) {
   const ticketRef = useRef<HTMLDivElement>(null);
   const [downloading, setDownloading] = useState(false);
@@ -23,18 +33,21 @@ export default function Ticket({ data, refCode }: TicketProps) {
   const services = servicesRaw ? servicesRaw.split(',') : [];
   const isReschedule = get('TYPE') === 'Reschedule';
 
-  // --- DOWNLOAD FUNCTIONALITY (Updated for html-to-image) ---
+  // Get Full Branch Name
+  const rawBranch = get('BRANCH');
+  const fullBranchName = BRANCH_MAP[rawBranch] || rawBranch; // Fallback to code if not found
+
+  // --- DOWNLOAD FUNCTIONALITY ---
   const handleDownload = async () => {
     if (!ticketRef.current) return;
 
     try {
       setDownloading(true);
       
-      // toPng uses the browser's native rendering, so it supports Tailwind v4's oklab/oklch colors
       const dataUrl = await toPng(ticketRef.current, {
         cacheBust: true,
-        backgroundColor: '#f8fafc', // Force background color
-        pixelRatio: 3, // High resolution (3x)
+        backgroundColor: '#f8fafc', 
+        pixelRatio: 3, 
       });
         
       const link = document.createElement('a');
@@ -124,7 +137,8 @@ export default function Ticket({ data, refCode }: TicketProps) {
                         <p className="text-[10px] font-bold text-[#94a3b8] uppercase tracking-wider mb-1 flex items-center gap-1">
                             <MapPin className="w-3 h-3" /> Branch
                         </p>
-                        <p className="text-base font-extrabold text-[#1e293b]">{get('BRANCH')}</p>
+                        {/* Display Full Branch Name */}
+                        <p className="text-sm font-extrabold text-[#1e293b] leading-tight">{fullBranchName}</p>
                     </div>
                     <div>
                         <p className="text-[10px] font-bold text-[#94a3b8] uppercase tracking-wider mb-1 flex items-center gap-1">
@@ -134,14 +148,14 @@ export default function Ticket({ data, refCode }: TicketProps) {
                     </div>
                 </div>
 
-                {/* Services */}
-                <div className="bg-[#f8fafc] p-3 rounded-xl border border-[#f1f5f9]">
-                    <p className="text-[10px] font-bold text-[#94a3b8] uppercase tracking-wider mb-2 flex items-center gap-1">
+                {/* Services - BIGGER & BOLDER */}
+                <div className="bg-[#f8fafc] p-4 rounded-xl border border-[#f1f5f9]">
+                    <p className="text-[10px] font-bold text-[#94a3b8] uppercase tracking-wider mb-3 flex items-center gap-1">
                         <Scissors className="w-3 h-3" /> Services
                     </p>
                     <div className="flex flex-wrap gap-2">
                         {services.map((s: string, i: number) => (
-                            <span key={i} className="inline-block bg-white border-b-2 border-[#e2e8f0] text-[#1e293b] text-xs font-bold px-2 py-1 rounded-md">
+                            <span key={i} className="inline-block bg-white border-b-2 border-[#e2e8f0] text-[#1e293b] text-sm font-extrabold px-3 py-1.5 rounded-lg shadow-sm">
                                 {s.trim()}
                             </span>
                         ))}
