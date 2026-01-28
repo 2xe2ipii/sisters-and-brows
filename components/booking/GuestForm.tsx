@@ -4,13 +4,23 @@ import { useState, useEffect } from 'react';
 import { User, Phone, Facebook, Plus, Trash2 } from 'lucide-react';
 
 interface GuestFormProps {
-  initialData?: any;
+  initialData?: any; // Contains { firstName, lastName, phone, fbLink, others: string[] }
 }
 
 export default function GuestForm({ initialData }: GuestFormProps) {
   const [others, setOthers] = useState<string[]>([]);
   const [newPerson, setNewPerson] = useState("");
   const [phone, setPhone] = useState(initialData?.phone || "");
+
+  // PREFILL: Load others when initialData changes
+  useEffect(() => {
+    if (initialData?.others && Array.isArray(initialData.others)) {
+       setOthers(initialData.others);
+    }
+    if (initialData?.phone) {
+        setPhone(initialData.phone);
+    }
+  }, [initialData]);
 
   const addPerson = () => {
     if (newPerson.trim()) {
@@ -58,7 +68,7 @@ export default function GuestForm({ initialData }: GuestFormProps) {
         </div>
       </div>
 
-      <div className="relative max-w-[200px]"> {/* Shrink Container */}
+      <div className="relative max-w-[200px]"> 
         <Phone className="absolute left-3 top-3.5 w-4 h-4 text-slate-400" />
         <input 
           type="tel" 

@@ -12,7 +12,6 @@ import TimeSlotGrid from './booking/TimeSlotGrid';
 import SessionSelect from './booking/SessionSelect';
 import ServiceList from './booking/ServiceList';
 import GuestForm from './booking/GuestForm';
-import SpecialRequests from './booking/SpecialRequests';
 import Ticket from './booking/Ticket';
 import SectionContainer from './booking/SectionContainer';
 
@@ -23,11 +22,10 @@ const initialState: BookingState = {
   data: undefined 
 };
 
-// --- HELPER: Date Formatter (YYYY-MM-DD -> MMM D, YYYY) ---
+// --- HELPER: Date Formatter ---
 function formatDateDisplay(dateStr: string) {
   if (!dateStr) return 'Select Date';
   try {
-    // Split to ensure local time interpretation (avoid timezone shifts)
     const [y, m, d] = dateStr.split('-').map(Number);
     const date = new Date(y, m - 1, d);
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -56,7 +54,7 @@ export default function BookingForm() {
   const [selectedTime, setSelectedTime] = useState("");
   const [session, setSession] = useState("1ST");
   
-  // Lifted Service State for Footer Visibility
+  // Lifted Service State
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   
   const [slotCounts, setSlotCounts] = useState<Record<string, number>>({});
@@ -67,7 +65,7 @@ export default function BookingForm() {
   const [formError, setFormError] = useState("");
   const today = new Date().toISOString().split('T')[0];
 
-  // Determine if the footer should show (Visible if ANY key info is selected)
+  // Footer Visibility
   const showStickyFooter = selectedBranch || selectedDate || selectedTime || selectedServices.length > 0;
 
   useEffect(() => {
@@ -84,7 +82,9 @@ export default function BookingForm() {
   }, []);
 
   useEffect(() => {
-    setSelectedTime(""); 
+    // Only reset time if it's not a Lookup action (Lookup sets time specifically)
+    if (!bookingFound) setSelectedTime(""); 
+    
     async function fetchSlots() {
       if (!selectedDate || !selectedBranch || !configLoaded) return;
       setLoadingSlots(true);
@@ -131,15 +131,32 @@ export default function BookingForm() {
       if (res.success && res.data) {
         setLookupMessage("Booking Found!");
         const d = res.data;
+        
         setSelectedBranch(d.branch);
         setSelectedDate(d.date);
+        setSelectedTime(d.time); // Pre-fill Time
         setSession(d.session || "1ST");
+        
+        // Parse Services
+        try {
+            const sList = JSON.parse(d.services || "[]");
+            setSelectedServices(sList);
+        } catch (e) { setSelectedServices([]); }
+
+        // Parse Guests (Others)
+        let othersList = [];
+        try {
+            othersList = JSON.parse(d.others || "[]");
+        } catch (e) {}
+
         setGuestData({
             firstName: d.firstName,
             lastName: d.lastName,
             phone: d.phone,
             fbLink: d.fbLink,
+            others: othersList // Pass to GuestForm
         });
+
         setBookingFound(true);
       } else {
         setLookupMessage(res.message || "Not found.");
@@ -188,26 +205,16 @@ export default function BookingForm() {
 
   return (
     <div className="min-h-screen w-full bg-[#f8fafc] flex flex-col items-center py-8 px-4">
-      {/* Added extra padding bottom for the sticky footer */}
       <div className={`w-full max-w-xl space-y-6 ${showStickyFooter ? 'pb-40' : ''}`}>
         
-        {/* COMPACT GRADIENT HEADER */}
-        <div className="bg-gradient-to-r from-[#202124] to-[#35363a] p-4 rounded-2xl shadow-lg border border-slate-700 flex items-center gap-5 animate-in fade-in slide-in-from-top-4 duration-500 text-white">
-            <div className="relative w-16 h-16 shrink-0 rounded-full overflow-hidden border-2 border-[#e6c200] shadow-sm">
-                <Image 
-                  src="/logo.jpg" 
-                  alt="Logo" 
-                  fill
-                  className="object-cover"
-                  priority
-                />
+        {/* CENTERED LOGO */}
+        <div className="flex flex-col items-center justify-center text-center space-y-4 pt-4 pb-6 animate-in fade-in slide-in-from-top-4 duration-500">
+            <div className="relative w-24 h-24 rounded-full overflow-hidden border-4 border-[#e6c200] shadow-xl">
+                <Image src="/logo.jpg" alt="Logo" fill className="object-cover" priority />
             </div>
-            <div className="flex flex-col">
-                <div className="flex items-center gap-2 text-[10px] font-bold tracking-widest text-[#e6c200] uppercase">
-                    <Sparkles className="w-3 h-3" /> Official Booking
-                </div>
-                <h1 className="text-xl font-extrabold text-white leading-tight">Sisters & Brows</h1>
-                <p className="text-xs text-slate-400 font-medium">Premium Aesthetics & Microblading Services</p>
+            <div>
+                <h1 className="text-2xl font-extrabold text-[#202124] tracking-tight">Sisters & Brows</h1>
+                <p className="text-sm text-slate-500 font-medium">Premium Aesthetics & Microblading Services</p>
             </div>
         </div>
 
@@ -252,9 +259,11 @@ export default function BookingForm() {
                        minDate={today}
                     />
                     
+                    {/* Hidden Inputs */}
                     <input type="hidden" name="branch" value={selectedBranch} />
                     <input type="hidden" name="date" value={selectedDate} />
                     <input type="hidden" name="session" value={session} />
+                    <input type="hidden" name="time" value={selectedTime} />
                     <input type="hidden" name="type" value={bookingType} />
                     {bookingType === 'Reschedule' && <input type="hidden" name="oldRefCode" value={refCode} />}
 
@@ -265,6 +274,7 @@ export default function BookingForm() {
                       selectedDate={selectedDate}
                       maxCapacity={maxCapacity} 
                       onSelectTime={setSelectedTime}
+                      selectedTime={selectedTime} // PASS SELECTED TIME HERE
                     />
 
                     {selectedTime ? (
@@ -283,8 +293,7 @@ export default function BookingForm() {
                                 <GuestForm initialData={guestData} /> 
                             </SectionContainer>
                             
-                            <SpecialRequests />
-
+                            {/* Hidden Services Inputs */}
                             {selectedServices.map((s, i) => (
                                 <input key={i} type="hidden" name="services" value={s} />
                             ))}
@@ -322,12 +331,11 @@ export default function BookingForm() {
         </div>
       </div>
 
-      {/* --- STICKY BOTTOM SUMMARY (Services & Info) --- */}
+      {/* --- STICKY FOOTER --- */}
       {showStickyFooter && (
           <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#202124] border-t border-slate-700 shadow-[0_-4px_30px_rgba(0,0,0,0.4)] p-3 pb-6 sm:pb-4 animate-in slide-in-from-bottom-20 duration-500">
              <div className="max-w-xl mx-auto flex flex-col gap-2">
                 
-                {/* Top Row: Context Info (Scrollable to prevent shrinking) */}
                 <div className="flex items-center gap-4 text-xs text-slate-300 font-semibold uppercase tracking-wide overflow-x-auto scrollbar-hide pb-1 border-b border-slate-700/50 whitespace-nowrap">
                    <div className="flex items-center gap-1.5 shrink-0">
                       <MapPin className="w-3.5 h-3.5 text-[#e6c200]" />
@@ -345,10 +353,8 @@ export default function BookingForm() {
                    </div>
                 </div>
                 
-                {/* Bottom Row: Services (Scrollable) */}
                 <div className="flex items-center gap-2 mt-1">
                    <span className="text-xs font-bold text-[#e6c200] shrink-0 uppercase tracking-wider">Services:</span>
-                   
                    {selectedServices.length > 0 ? (
                        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide w-full">
                            {selectedServices.map(s => (

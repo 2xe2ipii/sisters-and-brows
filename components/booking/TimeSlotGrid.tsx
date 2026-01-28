@@ -1,3 +1,5 @@
+'use client'
+
 import { Sparkles } from 'lucide-react';
 
 interface TimeSlotGridProps {
@@ -6,7 +8,8 @@ interface TimeSlotGridProps {
   loading: boolean;
   selectedDate: string;
   maxCapacity: number; 
-  onSelectTime: (time: string) => void; // Added Prop
+  onSelectTime: (time: string) => void;
+  selectedTime?: string; // Passed from Parent (BookingForm)
 }
 
 export default function TimeSlotGrid({ 
@@ -15,9 +18,23 @@ export default function TimeSlotGrid({
   loading, 
   selectedDate, 
   maxCapacity,
-  onSelectTime 
+  onSelectTime,
+  selectedTime 
 }: TimeSlotGridProps) {
   
+  // --- HELPER: ROBUST MATCHING ---
+  // Normalizes "1:00 PM - 2:30 PM" and "1:00 PM" to "1:00pm" for comparison
+  const isMatch = (slot: string, selected: string | undefined) => {
+    if (!selected) return false;
+    
+    const normalize = (s: string) => 
+      s.split('-')[0]              // Take the first part (Start Time)
+       .replace(/[\s\u00A0]/g, '') // Remove ALL spaces (standard + non-breaking)
+       .toLowerCase();             // Case insensitive
+       
+    return normalize(slot) === normalize(selected);
+  };
+
   if (!selectedDate) {
     return (
       <div className="text-center p-6 text-slate-400 text-sm font-medium border-2 border-dashed border-slate-100 rounded-2xl">
@@ -56,32 +73,40 @@ export default function TimeSlotGrid({
             const count = slotCounts[timeKey] || 0;
             const isFull = (maxCapacity - count) <= 0;
 
+            // Use the robust matcher
+            const isChecked = isMatch(slot, selectedTime);
+
             return (
               <label
                 key={slot}
                 className={`
                   relative overflow-hidden rounded-xl border transition-all duration-200 cursor-pointer group
-                  ${isFull
+                  ${isFull && !isChecked
                     ? 'bg-slate-50 border-transparent opacity-50 cursor-not-allowed pointer-events-none'
                     : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-md' 
                   }
+                  ${isChecked ? 'ring-2 ring-slate-900 border-slate-900' : ''} 
                 `}
               >
                 <input
                   type="radio"
                   name="time"
                   value={slot}
-                  disabled={isFull}
+                  disabled={isFull && !isChecked} 
                   required
+                  checked={isChecked}
                   className="peer hidden"
-                  onChange={() => onSelectTime(slot)} // Trigger the blocker unlock
+                  onChange={() => onSelectTime(slot)} 
                 />
 
+                {/* VISUAL OVERLAY FOR SELECTED STATE */}
                 <div className="absolute inset-0 bg-[#0f172a] opacity-0 peer-checked:opacity-100 transition-all duration-300 z-0"></div>
 
-                <div className={`p-4 relative z-10 transition-colors duration-300 flex items-center justify-between ${isFull ? 'text-slate-400' : 'text-slate-700 peer-checked:text-white'}`}>
+                {/* TEXT CONTENT */}
+                <div className={`p-4 relative z-10 transition-colors duration-300 flex items-center justify-between ${isFull && !isChecked ? 'text-slate-400' : 'text-slate-700 peer-checked:text-white'}`}>
                   <span className="font-bold text-sm">{slot}</span>
-                  {/* {isFull && <span className="text-[10px] font-bold uppercase tracking-wider">Full</span>} */}
+                  {/* Optional: Add checkmark icon if selected */}
+                  {isChecked && <Sparkles className="w-4 h-4 text-[#e6c200]" />}
                 </div>
               </label>
             );

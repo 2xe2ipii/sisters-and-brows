@@ -3,7 +3,7 @@
 import { z } from 'zod';
 import { getAllServices, getAppConfig, getSheetRows, getDoc } from '@/lib/googleSheets';
 
-// Import helpers from the new modular structure
+// Import helpers from the modular structure
 import { generateRefCode, normalizeSheetDate, findColumnKey, normalizeDate, normalizeStr, getStrictTime } from '@/lib/booking/utils';
 import { getDynamicConfig } from '@/lib/booking/config';
 import { checkSlotAvailability, checkDuplicate } from '@/lib/booking/availability';
@@ -38,6 +38,7 @@ export async function getSlotAvailability(date: string, branch: string) {
     return await checkSlotAvailability(date, branch);
 }
 
+// --- LOOKUP BOOKING ---
 export async function lookupBooking(refCode: string) {
   try {
     const { sheet, rows } = await getSheetRows();
@@ -48,36 +49,82 @@ export async function lookupBooking(refCode: string) {
     const KEY_CLIENT = findColumnKey(headers, "CLIENT #");
     if (!KEY_CLIENT) return { success: false, message: "No ID Column" };
 
-    const reversed = [...rows].reverse();
-    const match = reversed.find(r => String(r.get(KEY_CLIENT)).trim().toUpperCase() === refCode.trim().toUpperCase());
+    // 1. Find ALL rows matching the Ref Code
+    const allMatches = rows.filter(r => String(r.get(KEY_CLIENT)).trim().toUpperCase() === refCode.trim().toUpperCase());
 
-    if (!match) return { success: false, message: "Booking Reference not found." };
+    if (allMatches.length === 0) return { success: false, message: "Booking Reference not found." };
 
+    // 2. INTELLIGENT RETRIEVAL (Fixes Duplication/History Issue)
+    // Strategy: Scan BACKWARDS. Collect Guests until we hit a Main Booker.
+    // That Main Booker + those Guests form the "Latest Version".
+    // Everything else is old history.
+    
+    const KEY_TYPE = findColumnKey(headers, "TYPE");
+    const KEY_FULLNAME = findColumnKey(headers, "FULL NAME");
+
+    let latestMainBooker = null;
+    const latestGuests: string[] = [];
+
+    // Reverse iterate
+    for (let i = allMatches.length - 1; i >= 0; i--) {
+        const row = allMatches[i];
+        const type = KEY_TYPE ? String(row.get(KEY_TYPE)).toLowerCase() : "";
+        
+        if (type.includes("joiner")) {
+            // It's a guest, add to list
+            const name = KEY_FULLNAME ? String(row.get(KEY_FULLNAME)) : "Guest";
+            latestGuests.push(name); // Note: This adds them in reverse order (C, B, A)
+        } else {
+            // It's the Main Booker! We found our batch.
+            latestMainBooker = row;
+            break; // Stop scanning, we ignore older versions
+        }
+    }
+
+    if (!latestMainBooker) return { success: false, message: "Main Booking record missing." };
+
+    // Correct guest order (since we scanned backwards)
+    latestGuests.reverse();
+
+    // 3. Extract Details from the Latest Main Booker
     const KEY_BRANCH = findColumnKey(headers, "BRANCH");
     const KEY_DATE = findColumnKey(headers, "DATE");
     const KEY_FIRST = findColumnKey(headers, "FULL NAME"); 
     const KEY_PHONE = findColumnKey(headers, "Contact Number");
     const KEY_FB = findColumnKey(headers, "FACEBOOK NAME");
     const KEY_SESSION = findColumnKey(headers, "SESSION");
+    const KEY_TIME = findColumnKey(headers, "TIME");
+    const KEY_SERVICES = findColumnKey(headers, "SERVICES");
 
-    const fullName = KEY_FIRST ? String(match.get(KEY_FIRST)) : "";
+    const fullName = KEY_FIRST ? String(latestMainBooker.get(KEY_FIRST)) : "";
     const nameParts = fullName.split(' ');
     const lastName = nameParts.length > 1 ? nameParts.pop() || "" : "";
     const firstName = nameParts.join(' ') || fullName;
-    const rawBranch = KEY_BRANCH ? String(match.get(KEY_BRANCH)) : "";
+    const rawBranch = KEY_BRANCH ? String(latestMainBooker.get(KEY_BRANCH)) : "";
     
     const { BRANCH_MAP } = await getDynamicConfig();
     const branchName = Object.keys(BRANCH_MAP).find(key => BRANCH_MAP[key] === rawBranch) || rawBranch;
+
+    // Services
+    const serviceStr = KEY_SERVICES ? String(latestMainBooker.get(KEY_SERVICES)) : "";
+    const serviceList = serviceStr.split(',').map(s => s.trim()).filter(s => s);
+
+    // Date
+    const rawDate = KEY_DATE ? String(latestMainBooker.get(KEY_DATE)) : "";
+    const normalizedDate = rawDate ? normalizeDate(rawDate, new Date().getFullYear()) : "";
 
     return {
       success: true,
       data: {
         firstName, lastName,
-        phone: KEY_PHONE ? String(match.get(KEY_PHONE)) : "",
-        fbLink: KEY_FB ? String(match.get(KEY_FB)) : "",
+        phone: KEY_PHONE ? String(latestMainBooker.get(KEY_PHONE)) : "",
+        fbLink: KEY_FB ? String(latestMainBooker.get(KEY_FB)) : "",
         branch: branchName, 
-        date: KEY_DATE ? normalizeDate(String(match.get(KEY_DATE))) : "", 
-        session: KEY_SESSION ? String(match.get(KEY_SESSION)) : "1ST",
+        date: normalizedDate, 
+        time: KEY_TIME ? String(latestMainBooker.get(KEY_TIME)) : "",
+        session: KEY_SESSION ? String(latestMainBooker.get(KEY_SESSION)) : "1ST",
+        services: JSON.stringify(serviceList),
+        others: JSON.stringify(latestGuests) // Returns CLEAN list of latest guests
       }
     };
   } catch (error) {
@@ -85,7 +132,7 @@ export async function lookupBooking(refCode: string) {
   }
 }
 
-// --- SUBMIT ---
+// --- SUBMIT BOOKING ---
 const formSchema = z.object({
   type: z.string().optional(),
   oldRefCode: z.string().optional(), 
@@ -143,7 +190,7 @@ export async function submitBooking(prevState: any, formData: FormData): Promise
 
     const KEY_CLIENT = findColumnKey(headers, "CLIENT #");
 
-    // 1. DUPLICATE CHECK
+    // 1. DUPLICATE CHECK (Main Booker)
     const duplicate = await checkDuplicate(data, headers, rows);
     if (duplicate && data.type !== 'Reschedule') {
          return { success: true, message: "Booking already exists.", refCode: String(duplicate.get(KEY_CLIENT) || "") };
@@ -165,6 +212,10 @@ export async function submitBooking(prevState: any, formData: FormData): Promise
 
     // 4. PREPARE ROWS
     const rowsToAdd = [];
+    
+    // FIX #ERROR!: Use clean string logic
+    const mainRemarks = otherPeople.length > 0 ? `+${otherPeople.length} Others` : "";
+
     rowsToAdd.push({
       "BRANCH": shortBranch,
       "FACEBOOK NAME": data.fbLink || "",
@@ -178,7 +229,7 @@ export async function submitBooking(prevState: any, formData: FormData): Promise
       "STATUS": "Pending",
       "ACK?": "NO ACK",
       "M O P": "Cash",
-      "REMARKS": otherPeople.length > 0 ? `+${otherPeople.length} Others` : "",
+      "REMARKS": mainRemarks,
       "TYPE": data.type
     });
 
