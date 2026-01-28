@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import Image from 'next/image';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, ZoomIn, X } from 'lucide-react';
 import { fetchServices } from '@/app/actions';
 
 // --- FALLBACK DATA ---
@@ -33,10 +33,15 @@ const DEFAULT_SERVICES = [
 
 const CATEGORIES = ["All", "Bundles", "Mix & Match", "Brows", "Lips", "Skin", "Eyes"];
 
-export default function ServiceList({ onNext, onBack }: { onNext?: () => void, onBack?: () => void }) {
-  const [selectedServices, setSelectedServices] = useState<string[]>([]);
+interface ServiceListProps {
+  selectedServices: string[];
+  onToggle: (name: string) => void;
+}
+
+export default function ServiceList({ selectedServices, onToggle }: ServiceListProps) {
   const [activeCategory, setActiveCategory] = useState("All");
   const [servicesData, setServicesData] = useState<any[]>(DEFAULT_SERVICES);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -48,20 +53,35 @@ export default function ServiceList({ onNext, onBack }: { onNext?: () => void, o
     load();
   }, []);
 
-  const toggleService = (name: string) => {
-    setSelectedServices(prev => 
-      prev.includes(name) ? prev.filter(s => s !== name) : [...prev, name] 
-    );
-  };
-
   const filteredServices = useMemo(() => {
     if (activeCategory === "All") return servicesData;
     return servicesData.filter(s => s.category === activeCategory);
   }, [activeCategory, servicesData]);
 
   return (
-    <div className={`space-y-4 animate-in fade-in slide-in-from-right-8 duration-500 ${onNext ? 'pb-20' : ''}`}>
+    <div className="space-y-4 animate-in fade-in slide-in-from-right-8 duration-500">
       
+      {/* --- IMAGE MODAL (LIGHTBOX) --- */}
+      {previewImage && (
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-sm p-4 animate-in fade-in duration-300"
+          onClick={() => setPreviewImage(null)}
+        >
+          <button className="absolute top-6 right-6 text-white/50 hover:text-white transition-colors">
+            <X className="w-8 h-8" />
+          </button>
+          <div className="relative w-full max-w-4xl aspect-square sm:aspect-[4/3] rounded-lg overflow-hidden" onClick={e => e.stopPropagation()}>
+             <Image 
+               src={previewImage} 
+               alt="Preview" 
+               fill 
+               className="object-contain" 
+               quality={100}
+             />
+          </div>
+        </div>
+      )}
+
       {/* Category Chips */}
       <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-2 px-2 sticky top-0 bg-[#f8fafc] z-10 py-2">
         {CATEGORIES.map(cat => (
@@ -88,7 +108,7 @@ export default function ServiceList({ onNext, onBack }: { onNext?: () => void, o
           return (
             <div 
               key={service.id}
-              onClick={() => toggleService(service.name)}
+              onClick={() => onToggle(service.name)}
               className={`
                 group relative flex flex-col rounded-2xl overflow-hidden cursor-pointer transition-all duration-300
                 border-2 bg-white
@@ -98,8 +118,8 @@ export default function ServiceList({ onNext, onBack }: { onNext?: () => void, o
                 }
               `}
             >
-              {/* Square Image Container */}
-              <div className="relative aspect-square w-full bg-slate-100">
+              {/* Image Container */}
+              <div className="relative aspect-square w-full bg-slate-100 group-hover:brightness-95 transition-all">
                 <Image 
                   src={service.image || '/bundleA_3999.jpg'} 
                   alt={service.name || 'Service Image'}
@@ -107,6 +127,15 @@ export default function ServiceList({ onNext, onBack }: { onNext?: () => void, o
                   className={`object-cover transition-all duration-300 ${isSelected ? 'opacity-90' : 'opacity-100'}`}
                 />
                 
+                {/* Zoom Button - Explicit interaction to open modal */}
+                <button
+                   type="button"
+                   onClick={(e) => { e.stopPropagation(); setPreviewImage(service.image); }}
+                   className="absolute bottom-2 left-2 p-1.5 bg-black/30 hover:bg-black/60 backdrop-blur-md rounded-lg text-white/90 hover:text-white transition-all z-20 hover:scale-110"
+                >
+                  <ZoomIn className="w-4 h-4" />
+                </button>
+
                 {/* Selection Checkmark */}
                 <div className={`
                   absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center transition-all duration-300 shadow-sm z-10
@@ -118,19 +147,25 @@ export default function ServiceList({ onNext, onBack }: { onNext?: () => void, o
                     <div className="w-4 h-4 rounded-full border-2 border-slate-300" />
                   )}
                 </div>
-
-                {/* Price Tag Overlay */}
-                <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/60 backdrop-blur-sm rounded-lg z-10">
-                   <p className="text-[10px] font-bold text-white tracking-wide">{service.price}</p>
-                </div>
               </div>
 
-              {/* Info Below Square */}
+              {/* Info Area - PRICE MOVED HERE */}
               <div className="p-3 bg-white border-t border-slate-50 flex-1 flex flex-col justify-between">
-                 <div>
-                    <h3 className={`font-bold text-xs leading-tight mb-1 ${isSelected ? 'text-[#202124]' : 'text-slate-800'}`}>
-                      {service.name}
-                    </h3>
+                 <div className="space-y-1">
+                    <div className="flex justify-between items-start gap-2">
+                        <h3 className={`font-bold text-xs leading-tight ${isSelected ? 'text-[#202124]' : 'text-slate-800'}`}>
+                          {service.name}
+                        </h3>
+                        {/* Distinct Price Badge */}
+                        <span className={`
+                          shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded border
+                          ${isSelected 
+                            ? 'bg-[#e6c200]/10 text-amber-700 border-amber-200' 
+                            : 'bg-slate-50 text-slate-600 border-slate-100'}
+                        `}>
+                          {service.price}
+                        </span>
+                    </div>
                     <p className="text-[10px] text-slate-400 line-clamp-2 leading-relaxed">
                       {service.desc}
                     </p>
@@ -140,10 +175,6 @@ export default function ServiceList({ onNext, onBack }: { onNext?: () => void, o
           );
         })}
       </div>
-
-      {selectedServices.map((s, i) => (
-        <input key={i} type="hidden" name="services" value={s} />
-      ))}
     </div>
   );
 }

@@ -3,7 +3,7 @@
 import { useActionState, useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { submitBooking, getSlotAvailability, fetchAppConfig, lookupBooking, BookingState } from '@/app/actions';
-import { Sparkles, AlertCircle, Layers, Scissors, User } from 'lucide-react';
+import { Sparkles, AlertCircle, Layers, Scissors, User, MapPin, Calendar, Clock } from 'lucide-react';
 
 import StartHere from './booking/StartHere';
 import BranchSelect from './booking/BranchSelect';
@@ -22,6 +22,19 @@ const initialState: BookingState = {
   refCode: '',
   data: undefined 
 };
+
+// --- HELPER: Date Formatter (YYYY-MM-DD -> MMM D, YYYY) ---
+function formatDateDisplay(dateStr: string) {
+  if (!dateStr) return 'Select Date';
+  try {
+    // Split to ensure local time interpretation (avoid timezone shifts)
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  } catch (e) {
+    return dateStr;
+  }
+}
 
 export default function BookingForm() {
   const [state, formAction, isPending] = useActionState(submitBooking, initialState);
@@ -42,6 +55,10 @@ export default function BookingForm() {
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedTime, setSelectedTime] = useState("");
   const [session, setSession] = useState("1ST");
+  
+  // Lifted Service State for Footer Visibility
+  const [selectedServices, setSelectedServices] = useState<string[]>([]);
+  
   const [slotCounts, setSlotCounts] = useState<Record<string, number>>({});
   const [maxCapacity, setMaxCapacity] = useState(4); 
   const [loadingSlots, setLoadingSlots] = useState(false);
@@ -49,6 +66,9 @@ export default function BookingForm() {
   const [guestData, setGuestData] = useState<any>(null); 
   const [formError, setFormError] = useState("");
   const today = new Date().toISOString().split('T')[0];
+
+  // Determine if the footer should show (Visible if ANY key info is selected)
+  const showStickyFooter = selectedBranch || selectedDate || selectedTime || selectedServices.length > 0;
 
   useEffect(() => {
     async function init() {
@@ -92,8 +112,15 @@ export default function BookingForm() {
       setGuestData(null);
       setSelectedDate("");
       setSelectedTime("");
+      setSelectedServices([]); 
       if (branches.length > 0) setSelectedBranch(branches[0].name);
     }
+  };
+
+  const toggleService = (name: string) => {
+    setSelectedServices(prev => 
+      prev.includes(name) ? prev.filter(s => s !== name) : [...prev, name] 
+    );
   };
 
   const handleLookup = async () => {
@@ -135,9 +162,7 @@ export default function BookingForm() {
     }
     if (formRef.current) {
       if (session !== 'CONSULTATION') {
-         const formData = new FormData(formRef.current);
-         const services = formData.getAll('services');
-         if (services.length === 0) {
+         if (selectedServices.length === 0) {
             e.preventDefault();
             setFormError("Please select at least one service.");
             return;
@@ -163,9 +188,10 @@ export default function BookingForm() {
 
   return (
     <div className="min-h-screen w-full bg-[#f8fafc] flex flex-col items-center py-8 px-4">
-      <div className="w-full max-w-xl space-y-6">
+      {/* Added extra padding bottom for the sticky footer */}
+      <div className={`w-full max-w-xl space-y-6 ${showStickyFooter ? 'pb-40' : ''}`}>
         
-        {/* COMPACT GRADIENT HEADER - Using specific Dark Hex #202124 */}
+        {/* COMPACT GRADIENT HEADER */}
         <div className="bg-gradient-to-r from-[#202124] to-[#35363a] p-4 rounded-2xl shadow-lg border border-slate-700 flex items-center gap-5 animate-in fade-in slide-in-from-top-4 duration-500 text-white">
             <div className="relative w-16 h-16 shrink-0 rounded-full overflow-hidden border-2 border-[#e6c200] shadow-sm">
                 <Image 
@@ -249,7 +275,7 @@ export default function BookingForm() {
 
                             {session !== 'CONSULTATION' && (
                                 <SectionContainer title="Services" icon={<Scissors className="w-4 h-4 text-[#e6c200]" />}>
-                                    <ServiceList />
+                                    <ServiceList selectedServices={selectedServices} onToggle={toggleService} />
                                 </SectionContainer>
                             )}
 
@@ -258,6 +284,10 @@ export default function BookingForm() {
                             </SectionContainer>
                             
                             <SpecialRequests />
+
+                            {selectedServices.map((s, i) => (
+                                <input key={i} type="hidden" name="services" value={s} />
+                            ))}
 
                             <label className="flex gap-3 cursor-pointer group p-2">
                                 <input type="checkbox" name="agreement" required className="mt-0.5 w-4 h-4 text-[#e6c200] rounded border-slate-300 focus:ring-[#e6c200] accent-[#e6c200]" />
@@ -283,9 +313,7 @@ export default function BookingForm() {
                     )}
                 </div>
             )}
-
           </div>
-
         </form>
         
         <div className="text-center pb-8 opacity-40">
@@ -293,6 +321,50 @@ export default function BookingForm() {
            <p className="text-[10px] text-slate-500 mt-0.5 lowercase">developed by 2xe2ipi</p>
         </div>
       </div>
+
+      {/* --- STICKY BOTTOM SUMMARY (Services & Info) --- */}
+      {showStickyFooter && (
+          <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#202124] border-t border-slate-700 shadow-[0_-4px_30px_rgba(0,0,0,0.4)] p-3 pb-6 sm:pb-4 animate-in slide-in-from-bottom-20 duration-500">
+             <div className="max-w-xl mx-auto flex flex-col gap-2">
+                
+                {/* Top Row: Context Info (Scrollable to prevent shrinking) */}
+                <div className="flex items-center gap-4 text-xs text-slate-300 font-semibold uppercase tracking-wide overflow-x-auto scrollbar-hide pb-1 border-b border-slate-700/50 whitespace-nowrap">
+                   <div className="flex items-center gap-1.5 shrink-0">
+                      <MapPin className="w-3.5 h-3.5 text-[#e6c200]" />
+                      <span>{selectedBranch || 'Select Branch'}</span>
+                   </div>
+                   <div className="w-px h-3 bg-slate-600 shrink-0"></div>
+                   <div className="flex items-center gap-1.5 shrink-0">
+                      <Calendar className="w-3.5 h-3.5 text-[#e6c200]" />
+                      <span>{formatDateDisplay(selectedDate)}</span>
+                   </div>
+                   <div className="w-px h-3 bg-slate-600 shrink-0"></div>
+                   <div className="flex items-center gap-1.5 shrink-0">
+                      <Clock className="w-3.5 h-3.5 text-[#e6c200]" />
+                      <span>{selectedTime || '--:--'}</span>
+                   </div>
+                </div>
+                
+                {/* Bottom Row: Services (Scrollable) */}
+                <div className="flex items-center gap-2 mt-1">
+                   <span className="text-xs font-bold text-[#e6c200] shrink-0 uppercase tracking-wider">Services:</span>
+                   
+                   {selectedServices.length > 0 ? (
+                       <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide w-full">
+                           {selectedServices.map(s => (
+                              <span key={s} className="shrink-0 px-2.5 py-1 bg-white/10 text-white text-[10px] font-bold rounded-md border border-white/10 whitespace-nowrap">
+                                 {s}
+                              </span>
+                           ))}
+                       </div>
+                   ) : (
+                       <span className="text-xs text-slate-500 italic">None selected yet</span>
+                   )}
+                </div>
+
+             </div>
+          </div>
+      )}
     </div>
   );
 }
