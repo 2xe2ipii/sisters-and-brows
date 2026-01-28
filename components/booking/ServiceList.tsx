@@ -53,10 +53,33 @@ export default function ServiceList({ selectedServices, onToggle }: ServiceListP
     load();
   }, []);
 
-  const filteredServices = useMemo(() => {
-    if (activeCategory === "All") return servicesData;
-    return servicesData.filter(s => s.category === activeCategory);
-  }, [activeCategory, servicesData]);
+  // ... imports
+
+// Update DEFAULT_SERVICES or just the sorting logic in useMemo
+const filteredServices = useMemo(() => {
+    let data = [...servicesData];
+
+    // 1. FILTERING
+    if (activeCategory !== "All") {
+       data = data.filter(s => s.category === activeCategory);
+    }
+    
+    // 2. CONSULTATION MODE (Parent should pass a prop 'isConsultation')
+    // If you don't want to pass props, we can check via logic, but ideally passed from parent.
+    // Assuming you want the logic embedded:
+    
+    // 3. SORTING (Single -> Mix -> Bundles)
+    // We can assign weights: Single (Brows/Lips/Skin/Eyes) = 1, Mix = 2, Bundles = 3
+    const getWeight = (cat: string) => {
+       if (cat === 'Bundles') return 3;
+       if (cat === 'Mix & Match') return 2;
+       return 1; // Single services
+    };
+
+    data.sort((a, b) => getWeight(a.category) - getWeight(b.category));
+
+    return data;
+}, [activeCategory, servicesData]);
 
   return (
     <div className="space-y-4 animate-in fade-in slide-in-from-right-8 duration-500">

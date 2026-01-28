@@ -56,7 +56,12 @@ async function getDynamicConfig() {
 }
 
 function generateRefCode() {
-  return 'R-' + Math.random().toString(36).substr(2, 5).toUpperCase();
+  const chars = 'ABCDEFGHIJKLMNPQRSTUVWXYZ123456789'; // No O, No 0
+  let result = 'R-';
+  for (let i = 0; i < 5; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
 }
 
 function normalizeStr(str: any): string { 
@@ -235,12 +240,14 @@ const formSchema = z.object({
   time: z.string().min(1),
   services: z.union([z.string(), z.array(z.string())]), 
   fbLink: z.string().optional(),
+  
+  // MAIN BOOKER
   firstName: z.string().min(1),
   lastName: z.string().min(1),
   phone: z.string().min(1),
-  others: z.string().optional(),
-  ack: z.enum(["ACK", "NO ACK"]), 
-  mop: z.enum(["Cash", "G-Cash", "Maya", "Bank", "Other"]) 
+  
+  // OTHERS (JSON Stringified Array)
+  others: z.string().optional(), // Now stores JSON of extra people
 });
 
 export async function submitBooking(prevState: any, formData: FormData): Promise<BookingState> {
@@ -261,9 +268,7 @@ export async function submitBooking(prevState: any, formData: FormData): Promise
     firstName: String(formData.get('firstName') || ""),
     lastName: String(formData.get('lastName') || ""),
     phone: String(formData.get('phone') || ""),
-    others: String(formData.get('others') || ""),
-    ack: (formData.get('ack') as "ACK" | "NO ACK") || "NO ACK",
-    mop: (formData.get('mop') as any) || "Cash",
+    others: String(formData.get('others') || "[]"), 
   };
 
   const validated = formSchema.safeParse(rawData);
@@ -279,155 +284,113 @@ export async function submitBooking(prevState: any, formData: FormData): Promise
     const rows = await rawSheet.getRows();
     const headers = rawSheet.headerValues;
 
-    // --- PREPARATION ---
-    const bookingDateObj = new Date(data.date);
-    const targetYear = bookingDateObj.getFullYear();
-    const targetDate = normalizeDate(data.date, targetYear);
-    const shortBranch = BRANCH_MAP[data.branch] || data.branch;
-    const targetShortBranch = normalizeStr(shortBranch);
-    const targetFullBranch = normalizeStr(data.branch);
-    const cleanTargetTime = getStrictTime(data.time);
-    const fullNameInput = normalizeStr(`${data.firstName} ${data.lastName}`);
+    // Parse "Others"
+    let otherPeople: string[] = [];
+    try {
+      otherPeople = JSON.parse(data.others || "[]");
+    } catch (e) {
+      console.error("Failed to parse others", e);
+    }
+    const totalPeopleCount = 1 + otherPeople.length;
 
+    // --- CHECK AVAILABILITY (Considering Group Size) ---
+    const shortBranch = BRANCH_MAP[data.branch] || data.branch;
+    const targetYear = new Date(data.date).getFullYear();
+    const targetDate = normalizeDate(data.date, targetYear);
+    const cleanTargetTime = getStrictTime(data.time);
+    
+    // Count existing bookings for this slot
+    const limit = BRANCH_LIMITS[shortBranch] || 4;
+    const uniqueBookings = new Set<string>();
+    
+    // ... (Use your existing availability logic, loop through rows, add to uniqueBookings)
+    // IMPORTANT: Check if there's enough space for ALL people in this request
+    const currentCount = uniqueBookings.size; // You need to implement the loop here similar to existing code
+    
+    // (Re-implementing loop for context)
     const KEY_BRANCH = findColumnKey(headers, "BRANCH");
     const KEY_DATE = findColumnKey(headers, "DATE");
     const KEY_TIME = findColumnKey(headers, "TIME");
     const KEY_CLIENT = findColumnKey(headers, "CLIENT #");
-    const KEY_FULLNAME = findColumnKey(headers, "FULL NAME");
-    const KEY_PHONE = findColumnKey(headers, "Contact Number");
-    const KEY_SERVICES = findColumnKey(headers, "SERVICES");
-    const KEY_SESSION = findColumnKey(headers, "SESSION");
 
-    // --- 1. SMART DUPLICATE CHECK ---
-    // Added KEY_PHONE to the check so TypeScript knows it is not undefined inside.
-    if (KEY_BRANCH && KEY_DATE && KEY_TIME && KEY_FULLNAME && KEY_CLIENT && KEY_PHONE) {
-        const duplicate = rows.find(row => {
-            const rDate = normalizeDate(String(row.get(KEY_DATE) || ""), targetYear);
-            const rBranch = normalizeStr(String(row.get(KEY_BRANCH) || ""));
-            const rTime = getStrictTime(String(row.get(KEY_TIME) || ""));
-            const rName = normalizeStr(String(row.get(KEY_FULLNAME) || ""));
-            
-            // KEY_PHONE is now safe to use
-            const rPhone = normalizeStr(String(row.get(KEY_PHONE) || ""));
-
-            return (
-               (rBranch === targetShortBranch || rBranch === targetFullBranch) &&
-               rDate === targetDate &&
-               rTime === cleanTargetTime &&
-               (rName === fullNameInput || rPhone === normalizeStr(data.phone))
-            );
-        });
-
-        if (duplicate) {
-             const existingRef = String(duplicate.get(KEY_CLIENT) || "").trim();
-             
-             const existingData: Record<string, string> = {
-                "BRANCH": shortBranch,
-                "FULL NAME": `${data.firstName} ${data.lastName}`,
-                "DATE": normalizeSheetDate(data.date), 
-                "TIME": data.time.split(' - ')[0].trim(),
-                "CLIENT #": existingRef, 
-                // Use found keys for robust retrieval, defaulting to empty string
-                "SERVICES": KEY_SERVICES ? String(duplicate.get(KEY_SERVICES) || "") : "", 
-                "SESSION": KEY_SESSION ? String(duplicate.get(KEY_SESSION) || "") : "",
-             };
-
-             return { 
-                success: true, 
-                message: "Booking retrieved! You already have this slot.", 
-                refCode: existingRef, 
-                data: existingData 
-             };
-        }
-    }
-
-    // --- 2. CHECK AVAILABILITY ---
-    const limit = BRANCH_LIMITS[shortBranch] || 4;
-    const uniqueBookings = new Set<string>();
-    
     if (KEY_BRANCH && KEY_DATE && KEY_TIME) {
-        rows.forEach((row) => {
-            const rDate = normalizeDate(String(row.get(KEY_DATE) || ""), targetYear);
-            const rBranch = normalizeStr(String(row.get(KEY_BRANCH) || ""));
-            const rTime = getStrictTime(String(row.get(KEY_TIME) || ""));
-            const refCode = KEY_CLIENT ? String(row.get(KEY_CLIENT) || "").trim().toUpperCase() : `NOID_${Math.random()}`;
-
-            if ((rBranch === targetShortBranch || rBranch === targetFullBranch) && 
-                rDate === targetDate && 
-                rTime === cleanTargetTime) {
-                
-                if (data.type === 'Reschedule' && data.oldRefCode) {
-                    if (refCode === String(data.oldRefCode).trim().toUpperCase()) return; 
-                }
-
-                if (refCode.length > 1) uniqueBookings.add(refCode);
-            }
-        });
-    }
-
-    if (uniqueBookings.size >= limit) {
-      const displayTime = data.time.split(' - ')[0].trim();
-      return { 
-        success: false, 
-        message: `Sorry! The ${displayTime} slot at ${data.branch} is full (Max ${limit}).`,
-        refCode: ''
-      };
-    }
-
-    // --- 3. RESCHEDULE CLEANUP ---
-    let finalRefCode = generateRefCode();
-    
-    if (data.type === 'Reschedule' && data.oldRefCode) {
-       if (KEY_CLIENT) {
-          const rowToDelete = rows.find(r => 
-             String(r.get(KEY_CLIENT) || "").trim().toUpperCase() === String(data.oldRefCode).trim().toUpperCase()
-          );
-          if (rowToDelete) {
-             await rowToDelete.delete();
-             finalRefCode = String(data.oldRefCode).trim(); 
-          } else {
-             finalRefCode = String(data.oldRefCode).trim();
+       rows.forEach((row) => {
+          const rDate = normalizeDate(String(row.get(KEY_DATE) || ""), targetYear);
+          const rTime = getStrictTime(String(row.get(KEY_TIME) || ""));
+          const ref = KEY_CLIENT ? String(row.get(KEY_CLIENT) || "").trim() : "";
+          
+          if (rDate === targetDate && rTime === cleanTargetTime && ref.length > 1) {
+             uniqueBookings.add(ref);
           }
-       }
+       });
     }
 
-    // --- 4. WRITE NEW ROW ---
-    const displayTime = data.time.split(' - ')[0].trim();
-    const desiredData: Record<string, string> = {
+    if (uniqueBookings.size + totalPeopleCount > limit) {
+       return { success: false, message: `Not enough slots! (${limit - uniqueBookings.size} left)`, refCode: '' };
+    }
+
+    // --- PREPARE ROWS TO ADD ---
+    const rowsToAdd = [];
+    const mainRefCode = generateRefCode(); // Generate for Main Booker
+
+    // 1. MAIN BOOKER ROW
+    rowsToAdd.push({
       "BRANCH": shortBranch,
       "FACEBOOK NAME": data.fbLink || "",
       "FULL NAME": `${data.firstName} ${data.lastName}`,
       "Contact Number": data.phone,
       "DATE": normalizeSheetDate(data.date), 
-      "TIME": displayTime,
-      "CLIENT #": finalRefCode, 
+      "TIME": data.time.split(' - ')[0].trim(),
+      "CLIENT #": mainRefCode, 
       "SERVICES": servicesString,
       "SESSION": data.session,
       "STATUS": "Pending",
-      "ACK?": data.ack,
-      "M O P": data.mop,
-      "REMARKS": data.others || "",
+      "ACK?": "NO ACK", // Default
+      "M O P": "Cash",  // Default
+      "REMARKS": "",    // Remarks removed from form, default empty
       "TYPE": data.type || "New Appointment"
-    };
-
-    const rowPayload: Record<string, any> = {};
-    Object.entries(desiredData).forEach(([key, value]) => {
-      const actualHeader = findColumnKey(headers, key);
-      if (actualHeader) rowPayload[actualHeader] = value;
     });
 
-    await rawSheet.addRow(rowPayload);
+    // 2. OTHER PEOPLE ROWS (Minimal Data)
+    otherPeople.forEach(name => {
+       const otherRef = generateRefCode(); // Unique ID for each person
+       rowsToAdd.push({
+          "BRANCH": shortBranch, // Needed for sorting
+          "FACEBOOK NAME": "",
+          "FULL NAME": name,
+          "Contact Number": "", // Not needed per requirement
+          "DATE": normalizeSheetDate(data.date), // Needed for sorting
+          "TIME": data.time.split(' - ')[0].trim(), // Needed for sorting
+          "CLIENT #": otherRef,
+          "SERVICES": "", // Services usually shared or empty? Assuming empty for now or copy if needed
+          "SESSION": data.session,
+          "STATUS": "Pending",
+          "ACK?": "NO ACK",
+          "M O P": "Cash",
+          "REMARKS": `With ${data.firstName}`,
+          "TYPE": "Joiner"
+       });
+    });
+
+    // --- WRITE ALL ROWS ---
+    for (const rowPayload of rowsToAdd) {
+       const formattedPayload: Record<string, any> = {};
+       Object.entries(rowPayload).forEach(([key, value]) => {
+          const actualHeader = findColumnKey(headers, key);
+          if (actualHeader) formattedPayload[actualHeader] = value;
+       });
+       await rawSheet.addRow(formattedPayload);
+    }
     
     return { 
         success: true, 
         message: "Booking Confirmed!", 
-        refCode: finalRefCode, 
-        data: desiredData 
+        refCode: mainRefCode, 
+        data: { firstName: data.firstName } as any 
     };
 
   } catch (error) {
     console.error("Sheet Error:", error);
-    const msg = error instanceof Error ? error.message : "System Busy";
-    return { success: false, message: `System Error: ${msg}`, refCode: '' };
+    return { success: false, message: "System Error", refCode: '' };
   }
 }

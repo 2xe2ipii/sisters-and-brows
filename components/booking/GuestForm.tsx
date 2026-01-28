@@ -1,116 +1,116 @@
-import { useState } from 'react';
-import { User, Phone, CreditCard, Facebook, Package } from 'lucide-react';
+'use client'
+
+import { useState, useEffect } from 'react';
+import { User, Phone, Facebook, Plus, Trash2 } from 'lucide-react';
 
 interface GuestFormProps {
-  initialData?: {
-    firstName?: string;
-    lastName?: string;
-    phone?: string;
-    fbLink?: string;
-  } | null;
+  initialData?: any;
 }
 
 export default function GuestForm({ initialData }: GuestFormProps) {
-  const [ack, setAck] = useState("NO ACK");
+  const [others, setOthers] = useState<string[]>([]);
+  const [newPerson, setNewPerson] = useState("");
+
+  const addPerson = () => {
+    if (newPerson.trim()) {
+      setOthers([...others, newPerson.trim()]);
+      setNewPerson("");
+    }
+  };
+
+  const removePerson = (index: number) => {
+    setOthers(others.filter((_, i) => i !== index));
+  };
 
   return (
-    <div className="space-y-5 animate-in fade-in duration-500">
+    <div className="space-y-4 animate-in fade-in duration-500">
       
-      {/* ROW 1: Names */}
-      <div className="flex gap-4">
-        <div className="flex-1 space-y-1">
-           <label className="text-[10px] font-bold text-slate-500 uppercase">First Name</label>
-           <input 
-             name="firstName" 
-             type="text"
-             required 
-             defaultValue={initialData?.firstName || ""}
-             className="w-full px-3 py-3 rounded-lg border border-slate-200 bg-white text-sm font-bold text-slate-900 focus:ring-2 focus:ring-[#e6c200] focus:border-transparent outline-none transition-all" 
-           />
+      {/* Main Booker */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="relative">
+          <User className="absolute left-3 top-3.5 w-4 h-4 text-slate-400" />
+          <input 
+            type="text" 
+            name="firstName" 
+            placeholder="First Name" 
+            defaultValue={initialData?.firstName}
+            required 
+            className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#e6c200] focus:border-transparent outline-none transition-all text-sm font-bold text-slate-800 placeholder:text-slate-400"
+          />
         </div>
-        <div className="flex-1 space-y-1">
-           <label className="text-[10px] font-bold text-slate-500 uppercase">Last Name</label>
-           <input 
-             name="lastName" 
-             type="text"
-             required 
-             defaultValue={initialData?.lastName || ""}
-             className="w-full px-3 py-3 rounded-lg border border-slate-200 bg-white text-sm font-bold text-slate-900 focus:ring-2 focus:ring-[#e6c200] focus:border-transparent outline-none transition-all" 
-           />
+        <div className="relative">
+          <input 
+            type="text" 
+            name="lastName" 
+            placeholder="Last Name" 
+            defaultValue={initialData?.lastName}
+            required 
+            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#e6c200] focus:border-transparent outline-none transition-all text-sm font-bold text-slate-800 placeholder:text-slate-400"
+          />
         </div>
       </div>
 
-      {/* ROW 2: Mobile */}
-      <div className="space-y-1">
-         <label className="text-[10px] font-bold text-slate-500 uppercase">Mobile Number (11 Digits)</label>
-         <div className="relative">
-            <input 
-              name="phone" 
-              type="tel" 
-              pattern="09[0-9]{9}"
-              maxLength={11}
-              required 
-              defaultValue={initialData?.phone || ""}
-              className="w-full px-3 py-3 rounded-lg border border-slate-200 bg-white text-sm font-bold text-slate-900 focus:ring-2 focus:ring-[#e6c200] focus:border-transparent outline-none transition-all tracking-widest" 
-              onInput={(e) => {
-                const target = e.target as HTMLInputElement;
-                target.value = target.value.replace(/[^0-9]/g, '').slice(0, 11);
-              }}
-            />
-         </div>
+      <div className="relative">
+        <Phone className="absolute left-3 top-3.5 w-4 h-4 text-slate-400" />
+        <input 
+          type="tel" 
+          name="phone" 
+          placeholder="Contact Number" 
+          defaultValue={initialData?.phone}
+          required 
+          className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#e6c200] focus:border-transparent outline-none transition-all text-sm font-bold text-slate-800 placeholder:text-slate-400"
+        />
       </div>
 
-      {/* ROW 3: Facebook */}
-      <div className="space-y-1">
-         <label className="text-[10px] font-bold text-slate-500 uppercase flex justify-between">
-            <span>Facebook Profile</span>
-            <span className="text-slate-300 font-normal normal-case">Optional</span>
-         </label>
-         <input 
-           name="fbLink" 
-           type="url" 
-           defaultValue={initialData?.fbLink || ""}
-           className="w-full px-3 py-3 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-900 focus:ring-2 focus:ring-[#e6c200] focus:border-transparent outline-none transition-all" 
-         />
+      <div className="relative">
+        <Facebook className="absolute left-3 top-3.5 w-4 h-4 text-slate-400" />
+        <input 
+          type="text" 
+          name="fbLink" 
+          placeholder="Facebook Profile Link (Optional)" 
+          defaultValue={initialData?.fbLink}
+          className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#e6c200] focus:border-transparent outline-none transition-all text-sm font-medium text-slate-800 placeholder:text-slate-400"
+        />
       </div>
 
-      {/* ROW 4: Payment */}
-      <div className="space-y-1">
-          <label className="text-[10px] font-bold text-slate-500 uppercase">Payment Method</label>
-          <div className="relative">
-             <select 
-               name="mop" 
-               className="w-full px-3 py-3 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-900 focus:ring-2 focus:ring-[#e6c200] focus:border-transparent outline-none appearance-none cursor-pointer"
-             >
-               <option value="Cash">Cash</option>
-               <option value="G-Cash">GCash</option>
-               <option value="Maya">Maya</option>
-               <option value="Bank">Bank Transfer</option>
-               <option value="Other">Other</option>
-             </select>
-          </div>
-      </div>
+      {/* Other Persons Section */}
+      <div className="pt-2 border-t border-slate-100">
+        <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">
+          Bringing friends? (Optional)
+        </label>
+        
+        {/* List of added friends */}
+        <div className="space-y-2 mb-3">
+          {others.map((person, idx) => (
+            <div key={idx} className="flex items-center justify-between bg-slate-50 p-3 rounded-lg border border-slate-200">
+              <span className="text-sm font-bold text-slate-700">{person}</span>
+              <button type="button" onClick={() => removePerson(idx)} className="text-red-400 hover:text-red-600">
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+        </div>
 
-      {/* ROW 5: After Care Kit (Vertical) */}
-      <div className="space-y-2 pt-2">
-          <label className="text-[10px] font-bold text-slate-500 uppercase block text-center">Avail After Care Kit?</label>
-          <div className="flex flex-col gap-2">
-            <button
-              type="button"
-              onClick={() => setAck("ACK")}
-              className={`w-full py-3 rounded-xl text-sm font-bold border transition-all flex items-center justify-center gap-2 ${ack === "ACK" ? "bg-[#e6c200] text-[#202124] border-[#e6c200] shadow-sm" : "bg-white text-slate-500 border-slate-200"}`}
-            >
-              <Package className="w-4 h-4"/> Yes, I need one
-            </button>
-            <button
-              type="button"
-              onClick={() => setAck("NO ACK")}
-              className={`w-full py-3 rounded-xl text-sm font-bold border transition-all ${ack === "NO ACK" ? "bg-[#202124] text-white border-[#202124]" : "bg-white text-slate-500 border-slate-200"}`}
-            >
-              No, I have my own
-            </button>
-            <input type="hidden" name="ack" value={ack} />
-          </div>
+        {/* Add new friend input */}
+        <div className="flex gap-2">
+           <input 
+             type="text" 
+             value={newPerson}
+             onChange={(e) => setNewPerson(e.target.value)}
+             placeholder="Full Name of Friend"
+             className="flex-1 px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-[#e6c200]"
+           />
+           <button 
+             type="button" 
+             onClick={addPerson}
+             className="bg-[#202124] text-[#e6c200] p-3 rounded-xl hover:bg-black transition-colors"
+           >
+             <Plus className="w-5 h-5" />
+           </button>
+        </div>
+        
+        {/* Hidden Input to Pass Array to Action */}
+        <input type="hidden" name="others" value={JSON.stringify(others)} />
       </div>
 
     </div>
