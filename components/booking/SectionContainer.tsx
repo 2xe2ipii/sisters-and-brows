@@ -7,6 +7,8 @@ interface SectionContainerProps {
   className?: string;
 }
 
+// change section header color to pink
+
 export default function SectionContainer({ title, icon, children, className = "" }: SectionContainerProps) {
   return (
     <div className={`bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden ${className}`}>

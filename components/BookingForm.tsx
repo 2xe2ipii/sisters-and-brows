@@ -210,6 +210,7 @@ export default function BookingForm() {
         {/* CENTERED LOGO */}
         <div className="flex flex-col items-center justify-center text-center space-y-4 pt-4 pb-6 animate-in fade-in slide-in-from-top-4 duration-500">
             <div className="relative w-24 h-24 rounded-full overflow-hidden border-4 border-[#e6c200] shadow-xl">
+                {/* include more top here */}
                 <Image src="/logo.jpg" alt="Logo" fill className="object-cover" priority />
             </div>
             <div>
@@ -241,6 +242,7 @@ export default function BookingForm() {
                refCode={refCode}
                setRefCode={setRefCode}
                onLookup={handleLookup}
+              //  do not put toast!!!
                lookupLoading={lookupLoading}
                lookupMessage={lookupMessage}
             />
