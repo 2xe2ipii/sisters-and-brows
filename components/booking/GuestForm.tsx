@@ -137,9 +137,9 @@ export default function GuestForm({ initialData, maxCapacity = 4 }: GuestFormPro
             <Users className="w-4 h-4 text-[#e6c200]" />
             Bring Friends?
             </label>
-            <span className="text-[10px] text-slate-400 font-medium">
+            {/* <span className="text-[10px] text-slate-400 font-medium">
                 {guests.length} / {maxFriends} slots used
-            </span>
+            </span> */}
         </div>
         
         <div className="space-y-3">
