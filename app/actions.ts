@@ -124,7 +124,7 @@ export async function lookupBooking(refCode: string) {
         time: KEY_TIME ? String(latestMainBooker.get(KEY_TIME)) : "",
         session: KEY_SESSION ? String(latestMainBooker.get(KEY_SESSION)) : "1ST",
         services: JSON.stringify(serviceList),
-        others: JSON.stringify(latestGuests) // Returns CLEAN list of latest guests
+        others: JSON.stringify(latestGuests) // Returns JSON list of guests
       }
     };
   } catch (error) {
@@ -165,7 +165,7 @@ export async function submitBooking(prevState: any, formData: FormData): Promise
     firstName: String(formData.get('firstName') || ""),
     lastName: String(formData.get('lastName') || ""),
     phone: String(formData.get('phone') || ""),
-    others: String(formData.get('others') || "[]"),
+    others: String(formData.get('others') || ""),
   };
 
   const validated = formSchema.safeParse(rawData);
@@ -184,9 +184,11 @@ export async function submitBooking(prevState: any, formData: FormData): Promise
     const shortBranch = BRANCH_MAP[data.branch] || data.branch;
     const displayTime = data.time.split(' - ')[0].trim();
     
-    // Parse Guests
+    // Parse Guests (NEW LOGIC: Split Comma Separated String)
     let otherPeople: string[] = [];
-    try { otherPeople = JSON.parse(data.others || "[]"); } catch (e) {}
+    if (data.others && data.others.trim().length > 0) {
+        otherPeople = data.others.split(',').map(s => s.trim()).filter(s => s.length > 0);
+    }
 
     const KEY_CLIENT = findColumnKey(headers, "CLIENT #");
 
@@ -216,6 +218,7 @@ export async function submitBooking(prevState: any, formData: FormData): Promise
     // FIX #ERROR!: Use clean string logic
     const mainRemarks = otherPeople.length > 0 ? `+${otherPeople.length} Others` : "";
 
+    // Main Booker Row
     rowsToAdd.push({
       "BRANCH": shortBranch,
       "FACEBOOK NAME": data.fbLink || "",
@@ -233,6 +236,7 @@ export async function submitBooking(prevState: any, formData: FormData): Promise
       "TYPE": data.type
     });
 
+    // Companion Rows (Joiners)
     otherPeople.forEach(name => {
         rowsToAdd.push({
           "BRANCH": shortBranch,
@@ -241,14 +245,14 @@ export async function submitBooking(prevState: any, formData: FormData): Promise
           "Contact Number": "", 
           "DATE": normalizeSheetDate(data.date), 
           "TIME": displayTime,
-          "CLIENT #": finalRefCode,
+          "CLIENT #": finalRefCode, // SAME ID
           "SERVICES": "", 
           "SESSION": data.session,
           "STATUS": "Pending",
           "ACK?": "NO ACK",
           "M O P": "Cash",
           "REMARKS": `Guest of ${data.firstName}`,
-          "TYPE": "Joiner"
+          "TYPE": "Joiner" // Mark as Joiner for backend grouping
         });
     });
 
@@ -262,7 +266,16 @@ export async function submitBooking(prevState: any, formData: FormData): Promise
         await rawSheet.addRow(formattedPayload);
     }
     
-    return { success: true, message: "Booking Confirmed!", refCode: finalRefCode, data: { firstName: data.firstName } as any };
+    // Return data for the Ticket (we return the array as a string so the Ticket can parse it or display it)
+    return { 
+        success: true, 
+        message: "Booking Confirmed!", 
+        refCode: finalRefCode, 
+        data: { 
+            firstName: data.firstName,
+            others: JSON.stringify(otherPeople) // Pass back parsed list for Ticket display
+        } as any 
+    };
 
   } catch (error) {
     return { success: false, message: "System Error", refCode: '' };

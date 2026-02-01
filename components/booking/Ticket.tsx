@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react';
-import { CheckCircle2, MapPin, Sparkles, Copy, Scissors, Package, CreditCard, User, Download, Plus, Loader2 } from 'lucide-react';
+import { MapPin, Calendar, Clock, User, Scissors, Download, Loader2, CheckCircle2, Ticket as TicketIcon } from 'lucide-react';
 import Image from 'next/image';
 import { toPng } from 'html-to-image';
 
@@ -10,14 +10,14 @@ interface TicketProps {
   refCode: string;
 }
 
-// Branch Code to Full Name Mapping
-const BRANCH_MAP: Record<string, string> = {
-  "PQ": "Parañaque, Metro Manila",
-  "LP": "Lipa, Batangas",
-  "SP": "San Pablo, Laguna",
-  "NV": "Novaliches, Quezon City",
-  "DM": "Dasmariñas, Cavite",
-  "TG": "Comembo, Taguig"
+// Branch Configuration
+const BRANCH_CONFIG: Record<string, { name: string; color: string; text: string }> = {
+  "PQ": { name: "Parañaque", color: "bg-orange-500", text: "text-orange-600" },
+  "LP": { name: "Lipa City", color: "bg-blue-600", text: "text-blue-600" },
+  "SP": { name: "San Pablo", color: "bg-yellow-500", text: "text-yellow-700" }, // Darker text for yellow contrast
+  "NV": { name: "Novaliches", color: "bg-violet-600", text: "text-violet-600" },
+  "DM": { name: "Dasmariñas", color: "bg-cyan-400", text: "text-cyan-700" },
+  "TG": { name: "Taguig", color: "bg-green-600", text: "text-green-600" },
 };
 
 export default function Ticket({ data, refCode }: TicketProps) {
@@ -26,207 +26,165 @@ export default function Ticket({ data, refCode }: TicketProps) {
 
   if (!data) return null;
 
-  // Helper to safely get data
+  // Helper to safely get data keys (handles inconsistent casing from sheets)
   const get = (key: string) => data[key] || data[key.toUpperCase()] || data[key.toLowerCase()] || "";
 
-  const servicesRaw = get('SERVICES');
-  const services = servicesRaw ? servicesRaw.split(',') : [];
-  const isReschedule = get('TYPE') === 'Reschedule';
-
-  // Get Full Branch Name
+  // Branch Logic
   const rawBranch = get('BRANCH');
-  const fullBranchName = BRANCH_MAP[rawBranch] || rawBranch; // Fallback to code if not found
+  const branchInfo = BRANCH_CONFIG[rawBranch] || { name: rawBranch, color: "bg-zinc-800", text: "text-zinc-800" };
 
-  // --- DOWNLOAD FUNCTIONALITY ---
+  // Parse Companions
+  let companions = "";
+  try {
+     const rawOthers = get('others') || get('COMPANIONS');
+     if (rawOthers) {
+        if (rawOthers.startsWith('[')) {
+            const parsed = JSON.parse(rawOthers);
+            if (Array.isArray(parsed) && parsed.length > 0) companions = parsed.join(', ');
+        } else {
+            companions = rawOthers;
+        }
+     }
+  } catch (e) { companions = ""; }
+
+  // Parse Services
+  let services = get('SERVICES') || 'Consultation';
+  if (services.startsWith('[')) {
+      try { services = JSON.parse(services).join(', '); } catch {}
+  }
+
   const handleDownload = async () => {
     if (!ticketRef.current) return;
-
     try {
       setDownloading(true);
-      
-      const dataUrl = await toPng(ticketRef.current, {
-        cacheBust: true,
-        backgroundColor: '#f8fafc', 
-        pixelRatio: 3, 
-      });
-        
+      // Increased pixelRatio for crisper text on the generated image
+      const dataUrl = await toPng(ticketRef.current, { cacheBust: true, pixelRatio: 4 });
       const link = document.createElement('a');
-      link.download = `SistersBrows_Ticket_${refCode}.png`;
+      link.download = `SistersBrows_${refCode}.png`;
       link.href = dataUrl;
       link.click();
-
     } catch (err) {
-      console.error("Download failed:", err);
-      alert("Could not generate image. Please take a screenshot manually.");
+      alert("Please screenshot manually.");
     } finally {
       setDownloading(false);
     }
   };
 
-  const handleNewBooking = () => {
-    window.location.reload();
-  };
-
   return (
-    // Outer container
-    <div className="min-h-screen w-full bg-[#f8fafc] flex flex-col items-center pt-12 px-4 font-sans pb-12">
+    <div className="w-full flex flex-col items-center pt-4 pb-10 px-4 font-sans bg-slate-50 min-h-screen">
       
-      {/* TICKET CONTAINER */}
-      <div ref={ticketRef} className="w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden border border-[#f1f5f9] relative mb-8">
-        
-        {/* TOP: BRAND HEADER */}
-        <div className="bg-[#202124] py-5 px-6 relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
-                <div className="absolute right-[-20px] top-[-20px] w-24 h-24 rounded-full border-4 border-white/20"></div>
-                <div className="absolute left-[-20px] bottom-[-20px] w-16 h-16 rounded-full border-4 border-white/20"></div>
-            </div>
-
-            <div className="relative z-10 flex items-center gap-4">
-                <div className="w-14 h-14 rounded-full border-2 border-[#e6c200] overflow-hidden relative shadow-lg shrink-0">
-                   <Image 
-                     src="/logo.jpg" 
-                     alt="Logo" 
-                     fill
-                     className="object-cover"
-                   />
+      {/* --- TICKET CONTAINER --- */}
+      <div 
+        ref={ticketRef} 
+        className="w-full max-w-[360px] bg-white rounded-3xl shadow-2xl overflow-hidden relative isolate"
+      >
+        {/* 1. COMPACT HEADER */}
+        <div className={`${branchInfo.color} p-4 flex items-center justify-between relative overflow-hidden`}>
+            {/* Pattern Overlay */}
+            <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')]"></div>
+            
+            <div className="flex items-center gap-3 z-10">
+                <div className="bg-white/20 p-1.5 rounded-full backdrop-blur-sm">
+                    <CheckCircle2 className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                    <h1 className="text-[#e6c200] font-extrabold text-lg tracking-wide uppercase leading-none">Sisters & Brows</h1>
-                    <div className="mt-2 inline-flex items-center gap-1.5 bg-white/10 px-3 py-1 rounded-full backdrop-blur-sm border border-white/10">
-                        <CheckCircle2 className="w-3 h-3 text-[#e6c200]" />
-                        <span className="text-[10px] font-bold text-white uppercase tracking-wider">
-                            {isReschedule ? 'Rescheduled' : 'Confirmed'}
-                        </span>
-                    </div>
+                    <h1 className="text-white font-black uppercase tracking-wider text-sm leading-tight">Booking Confirmed</h1>
+                    <p className="text-white/80 text-[10px] font-medium">Sisters & Brows</p>
                 </div>
             </div>
+            
+            {/* Logo Watermark */}
+             <div className="w-10 h-10 rounded-full bg-white p-0.5 shadow-md z-10">
+                 <Image src="/logo.jpg" alt="Logo" width={40} height={40} className="rounded-full object-cover w-full h-full" />
+             </div>
         </div>
 
-        {/* MIDDLE: DETAILS */}
-        <div className="p-6 space-y-5">
+        {/* 2. MAIN BODY */}
+        <div className="bg-white p-5 pt-6 space-y-6 relative">
             
-            {/* HERO ROW: Date & Time */}
-            <div className="flex bg-[#f8fafc] rounded-2xl border border-[#e2e8f0] overflow-hidden">
-                <div className="flex-1 p-3 border-r border-[#e2e8f0] text-center">
-                    <p className="text-[10px] font-bold text-[#94a3b8] uppercase tracking-widest mb-1">Date</p>
-                    <p className="text-lg font-black text-[#0f172a] leading-tight">{get('DATE')}</p>
+            {/* Date & Time Row (HUGE TEXT) */}
+            <div className="flex items-start justify-between">
+                <div className="flex flex-col">
+                    <span className="text-[11px] font-bold uppercase text-slate-400 tracking-widest flex items-center gap-1 mb-1">
+                        <Calendar className="w-3 h-3" /> Date
+                    </span>
+                    <span className="text-3xl font-black text-slate-800 tracking-tight leading-none">
+                        {get('DATE').split('-')[0]} {/* Example: Feb */}
+                        <span className={`${branchInfo.text} ml-1`}>{get('DATE').split('-')[1]}</span>
+                    </span>
                 </div>
-                <div className="flex-1 p-3 text-center bg-[#fffdf5]">
-                    <p className="text-[10px] font-bold text-[#94a3b8] uppercase tracking-widest mb-1">Time</p>
-                    <p className="text-lg font-black text-[#202124] leading-tight">{get('TIME')}</p>
+                <div className="flex flex-col items-end">
+                    <span className="text-[11px] font-bold uppercase text-slate-400 tracking-widest flex items-center gap-1 mb-1">
+                        <Clock className="w-3 h-3" /> Time
+                    </span>
+                    <span className="text-3xl font-black text-slate-800 tracking-tight leading-none">
+                        {get('TIME')}
+                    </span>
                 </div>
             </div>
 
-            {/* MAIN DETAILS GRID */}
+            {/* Branch (HUGE TEXT) */}
+            <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                <span className="text-[10px] font-bold uppercase text-slate-400 tracking-widest flex items-center gap-1 mb-1">
+                    <MapPin className="w-3 h-3" /> Branch
+                </span>
+                <span className={`text-2xl font-black ${branchInfo.text} leading-none block`}>
+                    {branchInfo.name}
+                </span>
+            </div>
+
+            {/* Dashed Separator with Cutouts */}
+            <div className="relative flex items-center justify-center my-2">
+                <div className="absolute left-[-28px] w-6 h-6 bg-slate-50 rounded-full"></div>
+                <div className="w-full border-t-2 border-dashed border-slate-200"></div>
+                <div className="absolute right-[-28px] w-6 h-6 bg-slate-50 rounded-full"></div>
+            </div>
+
+            {/* Client Details */}
             <div className="space-y-4">
-                
-                {/* Client Name */}
                 <div>
-                    <p className="text-[10px] font-bold text-[#94a3b8] uppercase tracking-wider mb-1 flex items-center gap-1">
-                        <User className="w-3 h-3" /> Client Name
+                    <span className="text-[10px] font-bold uppercase text-slate-400 tracking-widest flex items-center gap-1 mb-1">
+                        <User className="w-3 h-3" /> Guest Name
+                    </span>
+                    <p className="text-xl font-extrabold text-slate-900 leading-tight">
+                        {get('FULL NAME')}
                     </p>
-                    <p className="text-xl font-black text-[#0f172a]">{get('FULL NAME')}</p>
-                    <p className="text-sm font-bold text-[#64748b]">{get('Contact Number')}</p>
+                    {companions && (
+                         <p className="text-xs font-medium text-slate-500 mt-1">
+                            <span className="font-bold text-slate-700">+ Companions:</span> {companions}
+                         </p>
+                    )}
                 </div>
 
-                <div className="w-full h-px bg-[#f1f5f9]"></div>
-
-                {/* Branch & Session */}
-                <div className="grid grid-cols-2 gap-4">
-                    <div>
-                        <p className="text-[10px] font-bold text-[#94a3b8] uppercase tracking-wider mb-1 flex items-center gap-1">
-                            <MapPin className="w-3 h-3" /> Branch
-                        </p>
-                        {/* Display Full Branch Name */}
-                        <p className="text-sm font-extrabold text-[#1e293b] leading-tight">{fullBranchName}</p>
-                    </div>
-                    <div>
-                        <p className="text-[10px] font-bold text-[#94a3b8] uppercase tracking-wider mb-1 flex items-center gap-1">
-                            <Sparkles className="w-3 h-3" /> Session
-                        </p>
-                        <p className="text-base font-extrabold text-[#1e293b]">{get('SESSION')}</p>
-                    </div>
-                </div>
-
-                {/* Services - BIGGER & BOLDER */}
-                <div className="bg-[#f8fafc] p-4 rounded-xl border border-[#f1f5f9]">
-                    <p className="text-[10px] font-bold text-[#94a3b8] uppercase tracking-wider mb-3 flex items-center gap-1">
-                        <Scissors className="w-3 h-3" /> Services
+                <div>
+                    <span className="text-[10px] font-bold uppercase text-slate-400 tracking-widest flex items-center gap-1 mb-1">
+                        <Scissors className="w-3 h-3" /> Service
+                    </span>
+                    <p className="text-lg font-bold text-slate-800 leading-snug">
+                        {services}
                     </p>
-                    <div className="flex flex-wrap gap-2">
-                        {services.map((s: string, i: number) => (
-                            <span key={i} className="inline-block bg-white border-b-2 border-[#e2e8f0] text-[#1e293b] text-sm font-extrabold px-3 py-1.5 rounded-lg shadow-sm">
-                                {s.trim()}
-                            </span>
-                        ))}
-                    </div>
                 </div>
-
-                {/* Admin Verification Box */}
-                <div className="grid grid-cols-2 gap-3">
-                    <div className="border border-[#e2e8f0] rounded-xl p-3 flex flex-col justify-center">
-                        <p className="text-[9px] font-bold text-[#94a3b8] uppercase tracking-wider mb-1">Payment</p>
-                        <div className="flex items-center gap-2">
-                            <CreditCard className="w-4 h-4 text-[#e6c200]" />
-                            <p className="text-sm font-black text-[#0f172a]">{get('M O P')}</p>
-                        </div>
-                    </div>
-                    <div className="border border-[#e2e8f0] rounded-xl p-3 flex flex-col justify-center">
-                        <p className="text-[9px] font-bold text-[#94a3b8] uppercase tracking-wider mb-1">After Care</p>
-                        <div className="flex items-center gap-2">
-                            <Package className="w-4 h-4 text-[#e6c200]" />
-                            <p className="text-sm font-black text-[#0f172a]">{get('ACK?') === 'ACK' ? 'Yes (+Kit)' : 'No'}</p>
-                        </div>
-                    </div>
-                </div>
-
             </div>
         </div>
 
-        {/* BOTTOM: CUTOUT SECTION */}
-        <div className="relative bg-[#202124] py-4 px-6">
-            {/* Cutout Circles */}
-            <div className="absolute top-[-10px] left-[-10px] w-5 h-5 bg-[#f8fafc] rounded-full"></div>
-            <div className="absolute top-[-10px] right-[-10px] w-5 h-5 bg-[#f8fafc] rounded-full"></div>
-            
-            <div className="absolute top-0 left-5 right-5 border-t-2 border-dashed border-white/20"></div>
-
-            <div className="flex justify-between items-center mt-1">
-                <div className="space-y-0.5">
-                    <p className="text-[10px] text-[#e6c200] font-bold uppercase tracking-widest">Reference ID</p>
-                    <p className="text-xl font-mono font-bold text-white tracking-widest">{refCode}</p>
-                </div>
-                <div className="bg-white/10 p-2 rounded-lg border border-white/5">
-                    <Copy className="w-5 h-5 text-[#e6c200]" />
-                </div>
-            </div>
+        {/* 3. FOOTER (Ref ID) */}
+        <div className="bg-slate-100 p-3 flex flex-col items-center justify-center border-t border-slate-200 border-dashed">
+            <p className="text-[10px] uppercase font-bold text-slate-400 tracking-widest mb-1">Reference ID</p>
+            <p className="text-sm font-mono font-medium text-slate-500 tracking-widest select-all">
+                {refCode}
+            </p>
         </div>
       </div>
 
-      {/* --- ACTION BUTTONS --- */}
-      <div className="flex flex-col w-full max-w-sm gap-3">
-         
-         <button 
-           onClick={handleDownload}
-           disabled={downloading}
-           className="w-full bg-[#202124] text-[#e6c200] font-bold text-base py-4 rounded-2xl shadow-lg hover:bg-black hover:scale-[1.01] transition-all flex items-center justify-center gap-2"
-         >
-           {downloading ? <Loader2 className="w-5 h-5 animate-spin"/> : <Download className="w-5 h-5" />}
-           Save Ticket
-         </button>
-
-         <button 
-           onClick={handleNewBooking}
-           className="w-full bg-white text-[#0f172a] font-bold text-base py-4 rounded-2xl border-2 border-[#e2e8f0] hover:bg-[#f8fafc] transition-all flex items-center justify-center gap-2"
-         >
-           <Plus className="w-5 h-5" />
-           Make Another Booking
-         </button>
-
-         <p className="text-center text-[10px] text-[#94a3b8] mt-2">
-            Tip: Screenshot if download fails.
-         </p>
-      </div>
+      {/* --- ACTION BUTTON --- */}
+      <button 
+        onClick={handleDownload} 
+        disabled={downloading} 
+        className="mt-6 w-full max-w-[360px] bg-[#202124] text-[#e6c200] font-bold py-4 rounded-xl shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-transform"
+      >
+        {downloading ? <Loader2 className="w-5 h-5 animate-spin"/> : <Download className="w-5 h-5" />}
+        Save Ticket to Gallery
+      </button>
 
     </div>
   );
