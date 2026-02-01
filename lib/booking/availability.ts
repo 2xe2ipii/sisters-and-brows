@@ -2,17 +2,47 @@ import { getDoc } from '@/lib/googleSheets';
 import { normalizeDate, normalizeStr, getStrictTime, findColumnKey } from './utils';
 import { getDynamicConfig } from './config';
 
+/**
+ * Gets the fortnight sheet name based on a date
+ * Must match the logic in Code.gs getFortnightSheetName()
+ */
+function getFortnightSheetName(dateStr: string): string {
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return "Unsorted";
+  
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const year = d.getFullYear();
+  const month = d.getMonth();
+  const day = d.getDate();
+  
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  const range = day <= 15 ? "1 - 15" : `16 - ${lastDay}`;
+  
+  return `${months[month]} ${range}, ${year}`;
+}
+
 export async function checkSlotAvailability(date: string, branch: string) {
   const { BRANCH_MAP, BRANCH_LIMITS } = await getDynamicConfig();
   
   try {
     const doc = await getDoc();
-    const rawSheet = doc.sheetsByTitle["Raw_Intake"];
-    if (!rawSheet) return { success: false, counts: {}, limit: 4 };
+    
+    // CRITICAL FIX: Check the VIEW SHEET instead of Raw_Intake
+    const sheetName = getFortnightSheetName(date);
+    const viewSheet = doc.sheetsByTitle[sheetName];
+    
+    // If the sheet doesn't exist yet, it means no bookings for that period
+    if (!viewSheet) {
+      return { 
+        success: true, 
+        counts: {}, 
+        limit: BRANCH_LIMITS[BRANCH_MAP[branch] || branch] || 4 
+      };
+    }
 
-    await rawSheet.loadHeaderRow(); 
-    const rows = await rawSheet.getRows();
-    const headers = rawSheet.headerValues;
+    await viewSheet.loadHeaderRow(); 
+    const rows = await viewSheet.getRows();
+    const headers = viewSheet.headerValues;
 
     const counts: Record<string, number> = {};
     const limit = BRANCH_LIMITS[BRANCH_MAP[branch] || branch] || 4;
@@ -32,9 +62,13 @@ export async function checkSlotAvailability(date: string, branch: string) {
             const rBranch = normalizeStr(String(row.get(KEY_BRANCH) || ""));
             const rTime = getStrictTime(String(row.get(KEY_TIME) || ""));
             const status = String(row.get("STATUS") || "").toLowerCase();
+            
+            // Skip header rows (date headers in view sheets)
+            const clientNum = String(row.get("CLIENT #") || "").trim();
+            const isDateHeader = !row.get("BRANCH") && clientNum.match(/^[A-Z][a-z]+ \d{1,2}(,\s+\d{4})?$/);
+            if (isDateHeader) return;
 
-            // v5 CHANGE: Count every single row as a consumed slot
-            // (Previously, we grouped by Reference ID)
+            // Count each non-cancelled booking
             if (!status.includes("cancel") && 
                 (rBranch === targetShortBranch || rBranch === targetFullBranch) && 
                 rDate === targetDate) {
