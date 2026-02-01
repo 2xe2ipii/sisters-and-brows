@@ -56,9 +56,6 @@ export async function lookupBooking(refCode: string) {
 
     // 2. INTELLIGENT RETRIEVAL (Fixes Duplication/History Issue)
     // Strategy: Scan BACKWARDS. Collect Guests until we hit a Main Booker.
-    // That Main Booker + those Guests form the "Latest Version".
-    // Everything else is old history.
-    
     const KEY_TYPE = findColumnKey(headers, "TYPE");
     const KEY_FULLNAME = findColumnKey(headers, "FULL NAME");
 
@@ -71,22 +68,19 @@ export async function lookupBooking(refCode: string) {
         const type = KEY_TYPE ? String(row.get(KEY_TYPE)).toLowerCase() : "";
         
         if (type.includes("joiner")) {
-            // It's a guest, add to list
             const name = KEY_FULLNAME ? String(row.get(KEY_FULLNAME)) : "Guest";
-            latestGuests.push(name); // Note: This adds them in reverse order (C, B, A)
+            latestGuests.push(name); 
         } else {
-            // It's the Main Booker! We found our batch.
             latestMainBooker = row;
-            break; // Stop scanning, we ignore older versions
+            break; 
         }
     }
 
     if (!latestMainBooker) return { success: false, message: "Main Booking record missing." };
 
-    // Correct guest order (since we scanned backwards)
     latestGuests.reverse();
 
-    // 3. Extract Details from the Latest Main Booker
+    // 3. Extract Details
     const KEY_BRANCH = findColumnKey(headers, "BRANCH");
     const KEY_DATE = findColumnKey(headers, "DATE");
     const KEY_FIRST = findColumnKey(headers, "FULL NAME"); 
@@ -97,26 +91,22 @@ export async function lookupBooking(refCode: string) {
     const KEY_SERVICES = findColumnKey(headers, "SERVICES");
 
     const fullName = KEY_FIRST ? String(latestMainBooker.get(KEY_FIRST)) : "";
-    const nameParts = fullName.split(' ');
-    const lastName = nameParts.length > 1 ? nameParts.pop() || "" : "";
-    const firstName = nameParts.join(' ') || fullName;
     const rawBranch = KEY_BRANCH ? String(latestMainBooker.get(KEY_BRANCH)) : "";
     
     const { BRANCH_MAP } = await getDynamicConfig();
     const branchName = Object.keys(BRANCH_MAP).find(key => BRANCH_MAP[key] === rawBranch) || rawBranch;
 
-    // Services
     const serviceStr = KEY_SERVICES ? String(latestMainBooker.get(KEY_SERVICES)) : "";
     const serviceList = serviceStr.split(',').map(s => s.trim()).filter(s => s);
 
-    // Date
     const rawDate = KEY_DATE ? String(latestMainBooker.get(KEY_DATE)) : "";
     const normalizedDate = rawDate ? normalizeDate(rawDate, new Date().getFullYear()) : "";
 
     return {
       success: true,
       data: {
-        firstName, lastName,
+        firstName: fullName, 
+        lastName: "", 
         phone: KEY_PHONE ? String(latestMainBooker.get(KEY_PHONE)) : "",
         fbLink: KEY_FB ? String(latestMainBooker.get(KEY_FB)) : "",
         branch: branchName, 
@@ -124,7 +114,7 @@ export async function lookupBooking(refCode: string) {
         time: KEY_TIME ? String(latestMainBooker.get(KEY_TIME)) : "",
         session: KEY_SESSION ? String(latestMainBooker.get(KEY_SESSION)) : "1ST",
         services: JSON.stringify(serviceList),
-        others: JSON.stringify(latestGuests) // Returns JSON list of guests
+        others: JSON.stringify(latestGuests) 
       }
     };
   } catch (error) {
@@ -184,7 +174,7 @@ export async function submitBooking(prevState: any, formData: FormData): Promise
     const shortBranch = BRANCH_MAP[data.branch] || data.branch;
     const displayTime = data.time.split(' - ')[0].trim();
     
-    // Parse Guests (NEW LOGIC: Split Comma Separated String)
+    // Parse Guests 
     let otherPeople: string[] = [];
     if (data.others && data.others.trim().length > 0) {
         otherPeople = data.others.split(',').map(s => s.trim()).filter(s => s.length > 0);
@@ -192,7 +182,7 @@ export async function submitBooking(prevState: any, formData: FormData): Promise
 
     const KEY_CLIENT = findColumnKey(headers, "CLIENT #");
 
-    // 1. DUPLICATE CHECK (Main Booker)
+    // 1. DUPLICATE CHECK
     const duplicate = await checkDuplicate(data, headers, rows);
     if (duplicate && data.type !== 'Reschedule') {
          return { success: true, message: "Booking already exists.", refCode: String(duplicate.get(KEY_CLIENT) || "") };
@@ -214,8 +204,6 @@ export async function submitBooking(prevState: any, formData: FormData): Promise
 
     // 4. PREPARE ROWS
     const rowsToAdd = [];
-    
-    // FIX #ERROR!: Use clean string logic
     const mainRemarks = otherPeople.length > 0 ? `+${otherPeople.length} Others` : "";
 
     // Main Booker Row
@@ -236,7 +224,7 @@ export async function submitBooking(prevState: any, formData: FormData): Promise
       "TYPE": data.type
     });
 
-    // Companion Rows (Joiners)
+    // Companion Rows
     otherPeople.forEach(name => {
         rowsToAdd.push({
           "BRANCH": shortBranch,
@@ -245,14 +233,14 @@ export async function submitBooking(prevState: any, formData: FormData): Promise
           "Contact Number": "", 
           "DATE": normalizeSheetDate(data.date), 
           "TIME": displayTime,
-          "CLIENT #": finalRefCode, // SAME ID
+          "CLIENT #": finalRefCode, 
           "SERVICES": "", 
           "SESSION": data.session,
           "STATUS": "Pending",
           "ACK?": "NO ACK",
           "M O P": "Cash",
           "REMARKS": `Guest of ${data.firstName}`,
-          "TYPE": "Joiner" // Mark as Joiner for backend grouping
+          "TYPE": "Joiner" 
         });
     });
 
@@ -266,14 +254,21 @@ export async function submitBooking(prevState: any, formData: FormData): Promise
         await rawSheet.addRow(formattedPayload);
     }
     
-    // Return data for the Ticket (we return the array as a string so the Ticket can parse it or display it)
+    // --- RETURN FULL DATA FOR TICKET ---
     return { 
         success: true, 
         message: "Booking Confirmed!", 
         refCode: finalRefCode, 
         data: { 
             firstName: data.firstName,
-            others: JSON.stringify(otherPeople) // Pass back parsed list for Ticket display
+            lastName: data.lastName,
+            phone: data.phone,
+            branch: data.branch,  // Full Branch Name
+            date: data.date,      // YYYY-MM-DD
+            time: displayTime,
+            session: data.session,
+            services: servicesString, 
+            others: JSON.stringify(otherPeople)
         } as any 
     };
 
