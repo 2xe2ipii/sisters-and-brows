@@ -5,16 +5,26 @@ import Image from 'next/image';
 import { CheckCircle2, ZoomIn, X } from 'lucide-react';
 import { fetchServices } from '@/app/actions';
 
-// --- HELPER FUNCTION TO CONVERT GOOGLE DRIVE LINKS ---
+// --- IMPROVED HELPER FUNCTION TO CONVERT GOOGLE DRIVE LINKS ---
 const getDirectImageUrl = (url: string): string => {
+  if (!url) return '/bundleA_3999.jpg'; // Default fallback
+  
   // If it's a Google Drive link, convert it to direct image URL
   if (url.includes('drive.google.com')) {
+    // Handle both sharing link formats:
+    // 1. https://drive.google.com/file/d/FILE_ID/view
+    // 2. https://drive.google.com/open?id=FILE_ID
     const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
-    if (match && match[1]) {
-      return `https://drive.google.com/uc?export=view&id=${match[1]}`;
+    const idMatch = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+    
+    const fileId = match?.[1] || idMatch?.[1];
+    
+    if (fileId) {
+      return `https://drive.google.com/uc?export=view&id=${fileId}`;
     }
   }
-  // Otherwise return as-is
+  
+  // Otherwise return as-is (for local paths or other URLs)
   return url;
 };
 
@@ -103,10 +113,14 @@ export default function ServiceList({ selectedServices, onToggle }: ServiceListP
              <Image 
                src={getDirectImageUrl(previewImage)} 
                alt="Preview" 
-               fill 
+               fill
+               sizes="(max-width: 1280px) 100vw, 1280px"
                className="object-contain" 
                quality={100}
                unoptimized
+               onError={(e) => {
+                 e.currentTarget.src = '/bundleA_3999.jpg';
+               }}
              />
           </div>
         </div>
@@ -154,8 +168,13 @@ export default function ServiceList({ selectedServices, onToggle }: ServiceListP
                   src={getDirectImageUrl(service.image) || '/bundleA_3999.jpg'} 
                   alt={service.name || 'Service Image'}
                   fill
+                  sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
                   className={`object-cover transition-all duration-300 ${isSelected ? 'opacity-90' : 'opacity-100'}`}
                   unoptimized
+                  onError={(e) => {
+                    // Fallback if image fails to load
+                    e.currentTarget.src = '/bundleA_3999.jpg';
+                  }}
                 />
                 
                 {/* Zoom Button - Explicit interaction to open modal */}

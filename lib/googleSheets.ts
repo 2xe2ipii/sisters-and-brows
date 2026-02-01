@@ -26,9 +26,28 @@ export const getDoc = async () => {
 
 // --- DATA: DEFAULTS ---
 const DEFAULT_SERVICES = [
-  // ... (Your existing list - truncated for brevity) ...
   { id: 'bundle-a', name: 'Bundle A', price: '₱3,999', category: 'Bundles', image: '/bundleA_3999.jpg', desc: 'Premium value package' },
-   // ... rest of your defaults
+  { id: 'bundle-b', name: 'Bundle B', price: '₱4,999', category: 'Bundles', image: '/bundleB_4999.jpg', desc: 'Complete brow & care package' },
+  { id: 'bundle-c', name: 'Bundle C', price: '₱5,499', category: 'Bundles', image: '/bundleC_5499.jpg', desc: 'Ultimate aesthetic package' },
+  { id: 'bundle-d', name: 'Bundle D', price: '₱6,499', category: 'Bundles', image: '/bundleD_6499.jpg', desc: 'Full service aesthetic suite' },
+  { id: 'mm-1', name: 'Mix & Match 1', price: '₱2,800', category: 'Mix & Match', image: '/mm1.jpg', desc: 'Custom combination' },
+  { id: 'mm-2', name: 'Mix & Match 2', price: '₱2,800', category: 'Mix & Match', image: '/mm2.jpg', desc: 'Custom combination' },
+  { id: 'mm-3', name: 'Mix & Match 3', price: '₱3,300', category: 'Mix & Match', image: '/mm3.jpg', desc: 'Custom combination' },
+  { id: 'mm-4', name: 'Mix & Match 4', price: '₱3,800', category: 'Mix & Match', image: '/mm4.jpg', desc: 'Custom combination' },
+  { id: 'mm-5', name: 'Mix & Match 5', price: '₱8,800', category: 'Mix & Match', image: '/mm5.jpg', desc: 'Custom combination' },
+  { id: 'mm-6', name: 'Mix & Match 6', price: '₱4,300', category: 'Mix & Match', image: '/mm6.jpg', desc: 'Custom combination' },
+  { id: 'mm-7', name: 'Mix & Match 7', price: '₱4,300', category: 'Mix & Match', image: '/mm7.jpg', desc: 'Custom combination' },
+  { id: 'mm-8', name: 'Mix & Match 8', price: '₱4,800', category: 'Mix & Match', image: '/mm8.jpg', desc: 'Custom combination' },
+  { id: 'mm-9', name: 'Mix & Match 9', price: '₱5,300', category: 'Mix & Match', image: '/mm9.jpg', desc: 'Custom combination' },
+  { id: 'mm-10', name: 'Mix & Match 10', price: '₱10,300', category: 'Mix & Match', image: '/mm10.jpg', desc: 'Premium combination' },
+  { id: '9d-micro', name: '9D Microblading', price: '₱4,999', category: 'Brows', image: '/mm8.jpg', desc: 'Natural hair-like strokes' },
+  { id: 'ombre', name: 'Ombre Brows', price: '₱3,999', category: 'Brows', image: '/ombre_brows.jpg', desc: 'Soft powdered makeup look' },
+  { id: 'combo', name: 'Combi Brows', price: '₱5,499', category: 'Brows', image: '/combo_brows.jpg', desc: 'Microblading + Shading mix' },
+  { id: 'lip-blush', name: 'Lip Blush', price: '₱3,500', category: 'Lips', image: '/lip_blush.jpg', desc: 'Natural healthy tint' },
+  { id: 'lash-line', name: 'Lash Line', price: '₱2,500', category: 'Eyes', image: '/lash_line.jpg', desc: 'Subtle eyeliner enhancement' },
+  { id: 'bb-glow', name: 'BB Glow', price: '₱2,500', category: 'Skin', image: '/bb_glow.jpg', desc: 'Semi-permanent foundation' },
+  { id: 'derma-pen', name: 'Derma Pen', price: '₱3,000', category: 'Skin', image: '/derma_pen.jpg', desc: 'Microneedling treatment' },
+  { id: 'scalp', name: 'Scalp Micro', price: '₱5,000+', category: 'Skin', image: '/scalp_micropigmentation.jpg', desc: 'Hair density illusion' }
 ];
 
 const DEFAULT_TIME_SLOTS = [
@@ -45,15 +64,14 @@ const DEFAULT_LOCATIONS = [
   { name: "Comembo, Taguig", code: "TG", limit: 4 }
 ];
 
-// --- CACHED FETCHERS (Crucial for Rate Limits) ---
+const CACHE_TIME = process.env.NODE_ENV === 'development' ? 30 : 3600;
 
-// Cache Services for 1 hour (3600s)
 export const getCachedServices = unstable_cache(
   async () => {
     try {
       const doc = await getDoc();
       let sheet = doc.sheetsByTitle["Services"];
-      if (!sheet) return DEFAULT_SERVICES; // Don't crash, just return defaults
+      if (!sheet) return DEFAULT_SERVICES;
 
       const rows = await sheet.getRows();
       if (rows.length === 0) return DEFAULT_SERVICES;
@@ -68,14 +86,14 @@ export const getCachedServices = unstable_cache(
       }));
     } catch (e) {
       console.error("Cache Fetch Error (Services):", e);
-      return DEFAULT_SERVICES;
+      return DEFAULT_SERVICES; // no crash
     }
   },
   ['services-cache'],
-  { revalidate: 3600 } 
+  { revalidate: CACHE_TIME } 
 );
 
-// Cache Config (Time/Locations) for 1 hour (3600s)
+// Cache Config (Time/Locations) (30s in dev, 1hr in production)
 export const getCachedAppConfig = unstable_cache(
   async () => {
     try {
@@ -114,7 +132,7 @@ export const getCachedAppConfig = unstable_cache(
     }
   },
   ['config-cache'],
-  { revalidate: 3600 }
+  { revalidate: CACHE_TIME } // ← NOW DYNAMIC!
 );
 
 // --- RAW INTAKE (No Cache - Must be Live) ---
@@ -123,7 +141,6 @@ export const getSheetRows = async () => {
   let sheet = doc.sheetsByTitle["Raw_Intake"];
   if (!sheet) sheet = doc.sheetsByIndex[0];
   
-  // Only load headers, not all rows initially if possible, but we need rows for slot counting
   await sheet.loadHeaderRow(); 
   const rows = await sheet.getRows();
   return { sheet, rows };

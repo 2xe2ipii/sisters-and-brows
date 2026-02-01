@@ -2,9 +2,7 @@
 
 import { z } from 'zod';
 import { getAllServices, getAppConfig, getSheetRows, getDoc } from '@/lib/googleSheets';
-
-// Import helpers from the modular structure
-import { generateRefCode, normalizeSheetDate, findColumnKey, normalizeDate, normalizeStr, getStrictTime } from '@/lib/booking/utils';
+import { generateRefCode, normalizeSheetDate, findColumnKey, normalizeDate, getStrictTime } from '@/lib/booking/utils';
 import { getDynamicConfig } from '@/lib/booking/config';
 import { checkSlotAvailability, checkDuplicate } from '@/lib/booking/availability';
 
@@ -54,15 +52,14 @@ export async function lookupBooking(refCode: string) {
 
     if (allMatches.length === 0) return { success: false, message: "Booking Reference not found." };
 
-    // 2. INTELLIGENT RETRIEVAL (Fixes Duplication/History Issue)
-    // Strategy: Scan BACKWARDS. Collect Guests until we hit a Main Booker.
+    // 2. INTELLIGENT RETRIEVAL
     const KEY_TYPE = findColumnKey(headers, "TYPE");
     const KEY_FULLNAME = findColumnKey(headers, "FULL NAME");
 
     let latestMainBooker = null;
     const latestGuests: string[] = [];
 
-    // Reverse iterate
+    // Reverse iterate to find the latest "batch"
     for (let i = allMatches.length - 1; i >= 0; i--) {
         const row = allMatches[i];
         const type = KEY_TYPE ? String(row.get(KEY_TYPE)).toLowerCase() : "";
@@ -90,9 +87,18 @@ export async function lookupBooking(refCode: string) {
     const KEY_TIME = findColumnKey(headers, "TIME");
     const KEY_SERVICES = findColumnKey(headers, "SERVICES");
 
-    const fullName = KEY_FIRST ? String(latestMainBooker.get(KEY_FIRST)) : "";
-    const rawBranch = KEY_BRANCH ? String(latestMainBooker.get(KEY_BRANCH)) : "";
+    // --- NAME SPLITTING LOGIC ---
+    const rawFullName = KEY_FIRST ? String(latestMainBooker.get(KEY_FIRST)) : "";
+    let firstName = rawFullName;
+    let lastName = "";
     
+    const nameParts = rawFullName.trim().split(' ');
+    if (nameParts.length > 1) {
+        lastName = nameParts.pop() || ""; // Take the last chunk as Last Name
+        firstName = nameParts.join(' ');  // Join the rest as First Name
+    }
+
+    const rawBranch = KEY_BRANCH ? String(latestMainBooker.get(KEY_BRANCH)) : "";
     const { BRANCH_MAP } = await getDynamicConfig();
     const branchName = Object.keys(BRANCH_MAP).find(key => BRANCH_MAP[key] === rawBranch) || rawBranch;
 
@@ -105,8 +111,8 @@ export async function lookupBooking(refCode: string) {
     return {
       success: true,
       data: {
-        firstName: fullName, 
-        lastName: "", 
+        firstName, 
+        lastName, 
         phone: KEY_PHONE ? String(latestMainBooker.get(KEY_PHONE)) : "",
         fbLink: KEY_FB ? String(latestMainBooker.get(KEY_FB)) : "",
         branch: branchName, 
@@ -114,7 +120,7 @@ export async function lookupBooking(refCode: string) {
         time: KEY_TIME ? String(latestMainBooker.get(KEY_TIME)) : "",
         session: KEY_SESSION ? String(latestMainBooker.get(KEY_SESSION)) : "1ST",
         services: JSON.stringify(serviceList),
-        others: JSON.stringify(latestGuests) 
+        others: JSON.stringify(latestGuests) // Pass array to frontend
       }
     };
   } catch (error) {
@@ -174,7 +180,7 @@ export async function submitBooking(prevState: any, formData: FormData): Promise
     const shortBranch = BRANCH_MAP[data.branch] || data.branch;
     const displayTime = data.time.split(' - ')[0].trim();
     
-    // Parse Guests 
+    // Parse Guests (NEW LOGIC: Split Comma Separated String)
     let otherPeople: string[] = [];
     if (data.others && data.others.trim().length > 0) {
         otherPeople = data.others.split(',').map(s => s.trim()).filter(s => s.length > 0);
@@ -263,8 +269,8 @@ export async function submitBooking(prevState: any, formData: FormData): Promise
             firstName: data.firstName,
             lastName: data.lastName,
             phone: data.phone,
-            branch: data.branch,  // Full Branch Name
-            date: data.date,      // YYYY-MM-DD
+            branch: data.branch,
+            date: data.date,
             time: displayTime,
             session: data.session,
             services: servicesString, 
