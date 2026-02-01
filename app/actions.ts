@@ -141,13 +141,18 @@ const formSchema = z.object({
   firstName: z.string().min(1),
   lastName: z.string().min(1),
   phone: z.string().min(1),
-  others: z.string().optional(),
+  // others field is now optional/ignored in schema validation since we pull it manually
+  others: z.any().optional(),
 });
 
 export async function submitBooking(prevState: any, formData: FormData): Promise<BookingState> {
   const { BRANCH_MAP, BRANCH_LIMITS } = await getDynamicConfig();
   const servicesRaw = formData.getAll('services');
   const servicesString = servicesRaw.map(s => String(s)).join(', ');
+
+  // v5 CHANGE: Retrieve multiple guest inputs
+  const guestNamesRaw = formData.getAll('guestName');
+  const otherPeople = guestNamesRaw.map(s => String(s).trim()).filter(s => s.length > 0);
 
   const rawData = {
     type: String(formData.get('type') || "New Appointment"), 
@@ -161,7 +166,6 @@ export async function submitBooking(prevState: any, formData: FormData): Promise
     firstName: String(formData.get('firstName') || ""),
     lastName: String(formData.get('lastName') || ""),
     phone: String(formData.get('phone') || ""),
-    others: String(formData.get('others') || ""),
   };
 
   const validated = formSchema.safeParse(rawData);
@@ -179,13 +183,6 @@ export async function submitBooking(prevState: any, formData: FormData): Promise
 
     const shortBranch = BRANCH_MAP[data.branch] || data.branch;
     const displayTime = data.time.split(' - ')[0].trim();
-    
-    // Parse Guests (NEW LOGIC: Split Comma Separated String)
-    let otherPeople: string[] = [];
-    if (data.others && data.others.trim().length > 0) {
-        otherPeople = data.others.split(',').map(s => s.trim()).filter(s => s.length > 0);
-    }
-
     const KEY_CLIENT = findColumnKey(headers, "CLIENT #");
 
     // 1. DUPLICATE CHECK
@@ -196,10 +193,14 @@ export async function submitBooking(prevState: any, formData: FormData): Promise
 
     // 2. AVAILABILITY CHECK
     const availResult = await checkSlotAvailability(data.date, data.branch);
-    if (availResult.counts[getStrictTime(data.time)] !== undefined) {
-         if ((availResult.counts[getStrictTime(data.time)] || 0) >= (BRANCH_LIMITS[shortBranch] || 4)) {
-             return { success: false, message: "Slot full.", refCode: '' };
-         }
+    
+    // v5 CHANGE: Calculate total headcount (Main Booker + Guests)
+    const headcount = 1 + otherPeople.length;
+    const currentOccupied = availResult.counts[getStrictTime(data.time)] || 0;
+    const limit = BRANCH_LIMITS[shortBranch] || 4;
+
+    if (currentOccupied + headcount > limit) {
+         return { success: false, message: `Not enough slots. Available: ${Math.max(0, limit - currentOccupied)}`, refCode: '' };
     }
 
     // 3. ID GENERATION

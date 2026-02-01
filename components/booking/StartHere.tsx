@@ -70,6 +70,7 @@ export default function StartHere({
                <span className="hidden sm:inline">Find</span>
              </button>
           </div>
+         {/* bring top */}
           
           {lookupMessage && (
              <p className={`text-xs font-bold ${lookupMessage.includes("Found") ? "text-green-600" : "text-red-500"}`}>

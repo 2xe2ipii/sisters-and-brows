@@ -289,7 +289,8 @@ export default function BookingForm() {
                             )}
 
                             <SectionContainer title="Personal Details" icon={<User className="w-4 h-4 text-[#e6c200]" />}>
-                                <GuestForm initialData={guestData} /> 
+                                {/* v5 CHANGE: Pass maxCapacity to GuestForm */}
+                                <GuestForm initialData={guestData} maxCapacity={maxCapacity} /> 
                             </SectionContainer>
                             
                             {/* Hidden Services Inputs */}

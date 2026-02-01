@@ -14,7 +14,7 @@ export async function checkSlotAvailability(date: string, branch: string) {
     const rows = await rawSheet.getRows();
     const headers = rawSheet.headerValues;
 
-    const uniqueBookings: Record<string, Set<string>> = {};
+    const counts: Record<string, number> = {};
     const limit = BRANCH_LIMITS[BRANCH_MAP[branch] || branch] || 4;
 
     const targetYear = new Date(date).getFullYear();
@@ -25,34 +25,27 @@ export async function checkSlotAvailability(date: string, branch: string) {
     const KEY_BRANCH = findColumnKey(headers, "BRANCH");
     const KEY_DATE = findColumnKey(headers, "DATE");
     const KEY_TIME = findColumnKey(headers, "TIME");
-    const KEY_CLIENT = findColumnKey(headers, "CLIENT #");
 
     if (KEY_BRANCH && KEY_DATE && KEY_TIME) {
         rows.forEach((row) => {
             const rDate = normalizeDate(String(row.get(KEY_DATE) || ""), targetYear);
             const rBranch = normalizeStr(String(row.get(KEY_BRANCH) || ""));
             const rTime = getStrictTime(String(row.get(KEY_TIME) || ""));
-            const refCode = KEY_CLIENT ? String(row.get(KEY_CLIENT) || "").trim().toUpperCase() : `NOID_${Math.random()}`;
             const status = String(row.get("STATUS") || "").toLowerCase();
 
+            // v5 CHANGE: Count every single row as a consumed slot
+            // (Previously, we grouped by Reference ID)
             if (!status.includes("cancel") && 
                 (rBranch === targetShortBranch || rBranch === targetFullBranch) && 
                 rDate === targetDate) {
                 
-                if (!uniqueBookings[rTime]) {
-                    uniqueBookings[rTime] = new Set();
+                if (!counts[rTime]) {
+                    counts[rTime] = 0;
                 }
-                if (refCode.length > 1) {
-                    uniqueBookings[rTime].add(refCode);
-                }
+                counts[rTime]++;
             }
         });
     }
-
-    const counts: Record<string, number> = {};
-    Object.keys(uniqueBookings).forEach(timeKey => {
-        counts[timeKey] = uniqueBookings[timeKey].size;
-    });
 
     return { success: true, counts, limit };
   } catch (error) {
@@ -66,14 +59,12 @@ export async function checkDuplicate(data: any, headers: string[], rows: any[]) 
     const targetDate = normalizeDate(data.date, targetYear);
     const cleanTargetTime = getStrictTime(data.time);
     
-    const KEY_BRANCH = findColumnKey(headers, "BRANCH");
     const KEY_DATE = findColumnKey(headers, "DATE");
     const KEY_TIME = findColumnKey(headers, "TIME");
-    const KEY_CLIENT = findColumnKey(headers, "CLIENT #");
     const KEY_FULLNAME = findColumnKey(headers, "FULL NAME");
     const KEY_PHONE = findColumnKey(headers, "Contact Number");
 
-    if (KEY_BRANCH && KEY_DATE && KEY_TIME && KEY_FULLNAME && KEY_PHONE) {
+    if (KEY_DATE && KEY_TIME && KEY_FULLNAME && KEY_PHONE) {
         const fullNameInput = normalizeStr(`${data.firstName} ${data.lastName}`);
         
         return rows.find((row: any) => {
