@@ -13,7 +13,7 @@ const nextConfig = {
         pathname: '/**',
       },
     ],
-    unoptimized: true, // Use this if you want to skip optimization for all images
+    unoptimized: true,
   },
 }
 

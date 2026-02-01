@@ -86,7 +86,7 @@ export const getCachedServices = unstable_cache(
       }));
     } catch (e) {
       console.error("Cache Fetch Error (Services):", e);
-      return DEFAULT_SERVICES; // no crash
+      return DEFAULT_SERVICES; // no cra
     }
   },
   ['services-cache'],

@@ -22,7 +22,6 @@ const initialState: BookingState = {
   data: undefined 
 };
 
-// --- HELPER: Date Formatter ---
 function formatDateDisplay(dateStr: string) {
   if (!dateStr) return 'Select Date';
   try {
@@ -42,7 +41,6 @@ export default function BookingForm() {
   const [branches, setBranches] = useState<any[]>([]); 
   const [timeSlots, setTimeSlots] = useState<string[]>([]);
   
-  // State for Booking
   const [bookingType, setBookingType] = useState("New Appointment");
   const [refCode, setRefCode] = useState("");
   const [lookupLoading, setLookupLoading] = useState(false);
@@ -54,7 +52,6 @@ export default function BookingForm() {
   const [selectedTime, setSelectedTime] = useState("");
   const [session, setSession] = useState("1ST");
   
-  // Lifted Service State
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   
   const [slotCounts, setSlotCounts] = useState<Record<string, number>>({});
