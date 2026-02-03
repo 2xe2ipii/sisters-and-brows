@@ -39,10 +39,26 @@ export default function EyelashExtensionGroup({
   const [isExpanded, setIsExpanded] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
+  // Hardcoded prices as fallback (matches DEFAULT_SERVICES in ServiceList.tsx)
+  const EYELASH_PRICES: Record<string, string> = {
+    'ee-classic': '₱499',
+    'ee-natural': '₱699',
+    'ee-wet': '₱699',
+    'ee-hybrid': '₱799',
+    'ee-whispy': '₱799',
+    'ee-anime': '₱899',
+    'ee-wispy-volume': '₱1199',
+    'ee-mega-volume': '₱1199',
+  };
+
   // Helper: Find price for a specific service by ID from the loaded Google Sheet data
   const getPrice = (serviceId: string) => {
+    // Try to find in passed services list first
     const service = services.find((s) => s.id === serviceId);
-    return service ? service.price : 'Check Price'; 
+    if (service) return service.price;
+    
+    // Fall back to hardcoded prices
+    return EYELASH_PRICES[serviceId] || 'Check Price'; 
   };
 
   const handleVariantClick = (e: React.MouseEvent, variant: typeof EYELASH_VARIANTS[0]) => {
