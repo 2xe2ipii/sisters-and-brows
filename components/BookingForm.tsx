@@ -100,6 +100,20 @@ export default function BookingForm() {
     fetchSlots();
   }, [selectedDate, selectedBranch, configLoaded]);
 
+  // Branch change effect: Remove eyelash services if switching away from Parañaque
+  useEffect(() => {
+    if (selectedBranch && selectedBranch !== 'Parañaque, Metro Manila') {
+      // Check if there are any eyelash services selected
+      const hasEyelashServices = selectedServices.some(s => s.startsWith('EE '));
+      if (hasEyelashServices) {
+        // Remove all eyelash services
+        setSelectedServices(prev => prev.filter(s => !s.startsWith('EE ')));
+        // Optionally show a toast/notification here
+        setFormError('Eyelash Extension services are only available in Parañaque. They have been removed from your selection.');
+      }
+    }
+  }, [selectedBranch]);
+
   const handleTypeChange = (newType: string) => {
     setBookingType(newType);
     if (newType === "New Appointment") {
@@ -115,9 +129,24 @@ export default function BookingForm() {
   };
 
   const toggleService = (name: string) => {
-    setSelectedServices(prev => 
-      prev.includes(name) ? prev.filter(s => s !== name) : [...prev, name] 
-    );
+    setSelectedServices(prev => {
+      // Check if this is an eyelash extension service (starts with "EE ")
+      const isEyelashService = name.startsWith('EE ');
+      
+      if (prev.includes(name)) {
+        // Removing this service
+        return prev.filter(s => s !== name);
+      } else {
+        // Adding this service
+        if (isEyelashService) {
+          // Mutual exclusivity: remove any other EE service before adding this one
+          return [...prev.filter(s => !s.startsWith('EE ')), name];
+        } else {
+          // Regular service: just add it
+          return [...prev, name];
+        }
+      }
+    });
   };
 
   const handleLookup = async () => {
@@ -284,7 +313,7 @@ export default function BookingForm() {
 
                             {session !== 'CONSULTATION' && (
                                 <SectionContainer title="Services" icon={<Scissors className="w-4 h-4 text-[#e6c200]" />}>
-                                    <ServiceList selectedServices={selectedServices} onToggle={toggleService} />
+                                    <ServiceList selectedServices={selectedServices} onToggle={toggleService} selectedBranch={selectedBranch} />
                                 </SectionContainer>
                             )}
 

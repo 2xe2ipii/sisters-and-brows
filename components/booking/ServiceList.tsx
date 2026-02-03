@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import Image from 'next/image';
+import EyelashExtensionGroup from './EyelashExtensionGroup';
 import { CheckCircle2, ZoomIn, X } from 'lucide-react';
 import { fetchServices } from '@/app/actions';
 
@@ -51,17 +52,27 @@ const DEFAULT_SERVICES = [
   { id: 'lash-line', name: 'Lash Line', price: '₱2,500', category: 'Eyes', image: '/lash_line.jpg', desc: 'Subtle eyeliner enhancement' },
   { id: 'bb-glow', name: 'BB Glow', price: '₱2,500', category: 'Skin', image: '/bb_glow.jpg', desc: 'Semi-permanent foundation' },
   { id: 'derma-pen', name: 'Derma Pen', price: '₱3,000', category: 'Skin', image: '/derma_pen.jpg', desc: 'Microneedling treatment' },
-  { id: 'scalp', name: 'Scalp Micro', price: '₱5,000+', category: 'Skin', image: '/scalp_micropigmentation.jpg', desc: 'Hair density illusion' }
+  { id: 'scalp', name: 'Scalp Micro', price: '₱5,000+', category: 'Skin', image: '/scalp_micropigmentation.jpg', desc: 'Hair density illusion' },
+  // Eyelash Extension Services (Parañaque only)
+  { id: 'ee-classic', name: 'EE Classic', price: '₱499', category: 'Eyelash', image: '/classic.png', desc: 'Classic eyelash extension', branches: ['Parañaque, Metro Manila'] },
+  { id: 'ee-natural', name: 'EE Natural Look', price: '₱699', category: 'Eyelash', image: '/natural_look.png', desc: 'Natural looking lashes', branches: ['Parañaque, Metro Manila'] },
+  { id: 'ee-wet', name: 'EE Wet Set', price: '₱699', category: 'Eyelash', image: '/wet_set.png', desc: 'Wet set effect', branches: ['Parañaque, Metro Manila'] },
+  { id: 'ee-hybrid', name: 'EE Hybrid', price: '₱799', category: 'Eyelash', image: '/hybrid.png', desc: 'Hybrid classic and volume', branches: ['Parañaque, Metro Manila'] },
+  { id: 'ee-whispy', name: 'EE Whispy', price: '₱799', category: 'Eyelash', image: '/whispy.png', desc: 'Whispy wispy effect', branches: ['Parañaque, Metro Manila'] },
+  { id: 'ee-anime', name: 'EE Anime', price: '₱899', category: 'Eyelash', image: '/anime.png', desc: 'Anime style', branches: ['Parañaque, Metro Manila'] },
+  { id: 'ee-wispy-volume', name: 'EE Wispy Volume', price: '₱1199', category: 'Eyelash', image: '/wispy_volume.png', desc: 'Wispy with volume', branches: ['Parañaque, Metro Manila'] },
+  { id: 'ee-mega-volume', name: 'EE Mega Volume', price: '₱1199', category: 'Eyelash', image: '/mega_volume.png', desc: 'Maximum volume look', branches: ['Parañaque, Metro Manila'] }
 ];
 
-const CATEGORIES = ["All", "Bundles", "Mix & Match", "Brows", "Lips", "Skin", "Eyes"];
+const CATEGORIES = ["All", "Bundles", "Mix & Match", "Brows", "Lips", "Skin", "Eyes", "Eyelash"];
 
 interface ServiceListProps {
   selectedServices: string[];
   onToggle: (name: string) => void;
+  selectedBranch?: string;
 }
 
-export default function ServiceList({ selectedServices, onToggle }: ServiceListProps) {
+export default function ServiceList({ selectedServices, onToggle, selectedBranch }: ServiceListProps) {
   const [activeCategory, setActiveCategory] = useState("All");
   const [servicesData, setServicesData] = useState<any[]>(DEFAULT_SERVICES);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -79,23 +90,32 @@ export default function ServiceList({ selectedServices, onToggle }: ServiceListP
   const filteredServices = useMemo(() => {
     let data = [...servicesData];
 
-    // 1. FILTERING
+    // 1. BRANCH FILTERING - Eyelash Extension only for Parañaque
+    data = data.filter(s => {
+      if (s.category === 'Eyelash') {
+        // Only show eyelash services if Parañaque is selected
+        return selectedBranch === 'Parañaque, Metro Manila';
+      }
+      return true; // All other services visible regardless of branch
+    });
+
+    // 2. CATEGORY FILTERING
     if (activeCategory !== "All") {
        data = data.filter(s => s.category === activeCategory);
     }
     
-    // 2. SORTING (Single -> Mix -> Bundles)
-    // Assign weights: Single (Brows/Lips/Skin/Eyes) = 1, Mix = 2, Bundles = 3
+    // 3. SORTING (Single -> Mix -> Bundles)
+    // Assign weights: Single (Brows/Lips/Skin/Eyes) = 1, Mix = 2, Bundles = 3, Eyelash = 1
     const getWeight = (cat: string) => {
        if (cat === 'Bundles') return 3;
        if (cat === 'Mix & Match') return 2;
-       return 1; // Single services
+       return 1; // Single services (Brows, Lips, Skin, Eyes, Eyelash)
     };
 
     data.sort((a, b) => getWeight(a.category) - getWeight(b.category));
 
     return data;
-  }, [activeCategory, servicesData]);
+  }, [activeCategory, servicesData, selectedBranch]);
 
   return (
     <div className="space-y-4 animate-in fade-in slide-in-from-right-8 duration-500">
@@ -146,8 +166,27 @@ export default function ServiceList({ selectedServices, onToggle }: ServiceListP
         ))}
       </div>
 
+      {/* Eyelash Extension Group - Special Component (Only show for Parañaque when in Eyelash category) */}
+      {selectedBranch === 'Parañaque, Metro Manila' && (activeCategory === 'All' || activeCategory === 'Eyelash') && (
+        <EyelashExtensionGroup
+          services={servicesData}
+          isSelected={selectedServices.some(s => s.startsWith('EE '))}
+          currentVariant={selectedServices.find(s => s.startsWith('EE '))}
+          onSelect={onToggle}
+          onRemove={() => {
+            // Remove all EE services
+            const eyelashServices = selectedServices.filter(s => s.startsWith('EE '));
+            eyelashServices.forEach(service => onToggle(service));
+          }}
+        />
+      )}
+
+      {/* Regular Services Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        {filteredServices.map((service) => {
+        {filteredServices
+          // Filter out eyelash services - they're handled by EyelashExtensionGroup component
+          .filter(service => service.category !== 'Eyelash')
+          .map((service) => {
           const isSelected = selectedServices.includes(service.name);
           return (
             <div 
@@ -168,6 +207,7 @@ export default function ServiceList({ selectedServices, onToggle }: ServiceListP
                   src={getDirectImageUrl(service.image) || '/bundleA_3999.jpg'} 
                   alt={service.name || 'Service Image'}
                   fill
+                  loading="lazy"
                   sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
                   className={`object-cover transition-all duration-300 ${isSelected ? 'opacity-90' : 'opacity-100'}`}
                   unoptimized

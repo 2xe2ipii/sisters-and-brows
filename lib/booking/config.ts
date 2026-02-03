@@ -14,3 +14,4 @@ export async function getDynamicConfig() {
   
   return { BRANCH_MAP, BRANCH_LIMITS };
 }
+

@@ -47,7 +47,16 @@ const DEFAULT_SERVICES = [
   { id: 'lash-line', name: 'Lash Line', price: '₱2,500', category: 'Eyes', image: '/lash_line.jpg', desc: 'Subtle eyeliner enhancement' },
   { id: 'bb-glow', name: 'BB Glow', price: '₱2,500', category: 'Skin', image: '/bb_glow.jpg', desc: 'Semi-permanent foundation' },
   { id: 'derma-pen', name: 'Derma Pen', price: '₱3,000', category: 'Skin', image: '/derma_pen.jpg', desc: 'Microneedling treatment' },
-  { id: 'scalp', name: 'Scalp Micro', price: '₱5,000+', category: 'Skin', image: '/scalp_micropigmentation.jpg', desc: 'Hair density illusion' }
+  { id: 'scalp', name: 'Scalp Micro', price: '₱5,000+', category: 'Skin', image: '/scalp_micropigmentation.jpg', desc: 'Hair density illusion' },
+  // Eyelash Extension Services (Parañaque only)
+  { id: 'ee-classic', name: 'EE Classic', price: '₱499', category: 'Eyelash', image: '/classic.png', desc: 'Classic eyelash extension', branches: ['Parañaque, Metro Manila'] },
+  { id: 'ee-natural', name: 'EE Natural Look', price: '₱699', category: 'Eyelash', image: '/natural_look.png', desc: 'Natural looking lashes', branches: ['Parañaque, Metro Manila'] },
+  { id: 'ee-wet', name: 'EE Wet Set', price: '₱699', category: 'Eyelash', image: '/wet_set.png', desc: 'Wet set effect', branches: ['Parañaque, Metro Manila'] },
+  { id: 'ee-hybrid', name: 'EE Hybrid', price: '₱799', category: 'Eyelash', image: '/hybrid.png', desc: 'Hybrid classic and volume', branches: ['Parañaque, Metro Manila'] },
+  { id: 'ee-whispy', name: 'EE Whispy', price: '₱799', category: 'Eyelash', image: '/whispy.png', desc: 'Whispy wispy effect', branches: ['Parañaque, Metro Manila'] },
+  { id: 'ee-anime', name: 'EE Anime', price: '₱899', category: 'Eyelash', image: '/anime.png', desc: 'Anime style', branches: ['Parañaque, Metro Manila'] },
+  { id: 'ee-wispy-volume', name: 'EE Wispy Volume', price: '₱1199', category: 'Eyelash', image: '/wispy_volume.png', desc: 'Wispy with volume', branches: ['Parañaque, Metro Manila'] },
+  { id: 'ee-mega-volume', name: 'EE Mega Volume', price: '₱1199', category: 'Eyelash', image: '/mega_volume.png', desc: 'Maximum volume look', branches: ['Parañaque, Metro Manila'] }
 ];
 
 const DEFAULT_TIME_SLOTS = [
