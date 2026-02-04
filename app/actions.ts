@@ -175,7 +175,18 @@ export async function submitBooking(prevState: any, formData: FormData): Promise
 
     const duplicate = await checkDuplicate(data, headers, rows);
     if (duplicate && data.type !== 'Reschedule') {
-         return { success: true, message: "Booking already exists.", refCode: String(duplicate.get(KEY_CLIENT) || "") };
+         const existingRef = String(duplicate.get(KEY_CLIENT) || "");
+         
+         // FIX: Fetch the actual data so the Ticket renders correctly
+         const lookupRes = await lookupBooking(existingRef);
+         
+         return { 
+            success: true, 
+            message: "Booking already exists.", 
+            refCode: existingRef,
+            // Pass the found data, or fallback to empty if lookup fails (unlikely)
+            data: lookupRes.success && lookupRes.data ? (lookupRes.data as any) : undefined
+         };
     }
 
     const availResult = await checkSlotAvailability(data.date, data.branch);
