@@ -47,19 +47,15 @@ export async function lookupBooking(refCode: string) {
     const KEY_CLIENT = findColumnKey(headers, "CLIENT #");
     if (!KEY_CLIENT) return { success: false, message: "No ID Column" };
 
-    // 1. Find ALL rows matching the Ref Code
     const allMatches = rows.filter(r => String(r.get(KEY_CLIENT)).trim().toUpperCase() === refCode.trim().toUpperCase());
-
     if (allMatches.length === 0) return { success: false, message: "Booking Reference not found." };
 
-    // 2. INTELLIGENT RETRIEVAL
     const KEY_TYPE = findColumnKey(headers, "TYPE");
     const KEY_FULLNAME = findColumnKey(headers, "FULL NAME");
 
     let latestMainBooker = null;
     const latestGuests: string[] = [];
 
-    // Reverse iterate to find the latest "batch"
     for (let i = allMatches.length - 1; i >= 0; i--) {
         const row = allMatches[i];
         const type = KEY_TYPE ? String(row.get(KEY_TYPE)).toLowerCase() : "";
@@ -74,10 +70,8 @@ export async function lookupBooking(refCode: string) {
     }
 
     if (!latestMainBooker) return { success: false, message: "Main Booking record missing." };
-
     latestGuests.reverse();
 
-    // 3. Extract Details
     const KEY_BRANCH = findColumnKey(headers, "BRANCH");
     const KEY_DATE = findColumnKey(headers, "DATE");
     const KEY_FIRST = findColumnKey(headers, "FULL NAME"); 
@@ -87,15 +81,13 @@ export async function lookupBooking(refCode: string) {
     const KEY_TIME = findColumnKey(headers, "TIME");
     const KEY_SERVICES = findColumnKey(headers, "SERVICES");
 
-    // --- NAME SPLITTING LOGIC ---
     const rawFullName = KEY_FIRST ? String(latestMainBooker.get(KEY_FIRST)) : "";
     let firstName = rawFullName;
     let lastName = "";
-    
     const nameParts = rawFullName.trim().split(' ');
     if (nameParts.length > 1) {
-        lastName = nameParts.pop() || ""; // Take the last chunk as Last Name
-        firstName = nameParts.join(' ');  // Join the rest as First Name
+        lastName = nameParts.pop() || "";
+        firstName = nameParts.join(' ');
     }
 
     const rawBranch = KEY_BRANCH ? String(latestMainBooker.get(KEY_BRANCH)) : "";
@@ -111,8 +103,7 @@ export async function lookupBooking(refCode: string) {
     return {
       success: true,
       data: {
-        firstName, 
-        lastName, 
+        firstName, lastName, 
         phone: KEY_PHONE ? String(latestMainBooker.get(KEY_PHONE)) : "",
         fbLink: KEY_FB ? String(latestMainBooker.get(KEY_FB)) : "",
         branch: branchName, 
@@ -120,7 +111,7 @@ export async function lookupBooking(refCode: string) {
         time: KEY_TIME ? String(latestMainBooker.get(KEY_TIME)) : "",
         session: KEY_SESSION ? String(latestMainBooker.get(KEY_SESSION)) : "1ST",
         services: JSON.stringify(serviceList),
-        others: JSON.stringify(latestGuests) // Pass array to frontend
+        others: JSON.stringify(latestGuests)
       }
     };
   } catch (error) {
@@ -141,7 +132,6 @@ const formSchema = z.object({
   firstName: z.string().min(1),
   lastName: z.string().min(1),
   phone: z.string().min(1),
-  // others field is now optional/ignored in schema validation since we pull it manually
   others: z.any().optional(),
 });
 
@@ -149,8 +139,6 @@ export async function submitBooking(prevState: any, formData: FormData): Promise
   const { BRANCH_MAP, BRANCH_LIMITS } = await getDynamicConfig();
   const servicesRaw = formData.getAll('services');
   const servicesString = servicesRaw.map(s => String(s)).join(', ');
-
-  // v5 CHANGE: Retrieve multiple guest inputs
   const guestNamesRaw = formData.getAll('guestName');
   const otherPeople = guestNamesRaw.map(s => String(s).trim()).filter(s => s.length > 0);
 
@@ -175,26 +163,22 @@ export async function submitBooking(prevState: any, formData: FormData): Promise
     const data = validated.data;
     const doc = await getDoc();
     const rawSheet = doc.sheetsByTitle["Raw_Intake"];
-    if (!rawSheet) throw new Error("DB Missing");
+    if (!rawSheet) throw new Error("Database sheet 'Raw_Intake' not found.");
 
     await rawSheet.loadHeaderRow();
-    const rows = await rawSheet.getRows();
     const headers = rawSheet.headerValues;
+    const rows = await rawSheet.getRows();
 
     const shortBranch = BRANCH_MAP[data.branch] || data.branch;
     const displayTime = data.time.split(' - ')[0].trim();
     const KEY_CLIENT = findColumnKey(headers, "CLIENT #");
 
-    // 1. DUPLICATE CHECK
     const duplicate = await checkDuplicate(data, headers, rows);
     if (duplicate && data.type !== 'Reschedule') {
          return { success: true, message: "Booking already exists.", refCode: String(duplicate.get(KEY_CLIENT) || "") };
     }
 
-    // 2. AVAILABILITY CHECK
     const availResult = await checkSlotAvailability(data.date, data.branch);
-    
-    // v5 CHANGE: Calculate total headcount (Main Booker + Guests)
     const headcount = 1 + otherPeople.length;
     const currentOccupied = availResult.counts[getStrictTime(data.time)] || 0;
     const limit = BRANCH_LIMITS[shortBranch] || 4;
@@ -203,18 +187,17 @@ export async function submitBooking(prevState: any, formData: FormData): Promise
          return { success: false, message: `Not enough slots. Available: ${Math.max(0, limit - currentOccupied)}`, refCode: '' };
     }
 
-    // 3. ID GENERATION
     let finalRefCode = generateRefCode(); 
     if (data.type === 'Reschedule' && data.oldRefCode) {
        finalRefCode = String(data.oldRefCode).trim().toUpperCase();
     }
 
-    // 4. PREPARE ROWS
-    const rowsToAdd = [];
+    // Prepare all rows locally first
+    const rowsToAdd: any[] = [];
     const mainRemarks = otherPeople.length > 0 ? `+${otherPeople.length} Others` : "";
 
-    // Main Booker Row
-    rowsToAdd.push({
+    // 1. Main Booker
+    const mainRowData: Record<string, any> = {
       "BRANCH": shortBranch,
       "FACEBOOK NAME": data.fbLink || "",
       "FULL NAME": `${data.firstName} ${data.lastName}`,
@@ -229,11 +212,18 @@ export async function submitBooking(prevState: any, formData: FormData): Promise
       "M O P": "Cash",
       "REMARKS": mainRemarks,
       "TYPE": data.type
-    });
+    };
 
-    // Companion Rows
+    const formattedMain: Record<string, any> = {};
+    Object.entries(mainRowData).forEach(([key, value]) => {
+      const actualHeader = findColumnKey(headers, key);
+      if (actualHeader) formattedMain[actualHeader] = value;
+    });
+    rowsToAdd.push(formattedMain);
+
+    // 2. Joiners
     otherPeople.forEach(name => {
-        rowsToAdd.push({
+        const guestRowData: Record<string, any> = {
           "BRANCH": shortBranch,
           "FACEBOOK NAME": "",
           "FULL NAME": name,
@@ -248,20 +238,19 @@ export async function submitBooking(prevState: any, formData: FormData): Promise
           "M O P": "Cash",
           "REMARKS": `Guest of ${data.firstName}`,
           "TYPE": "Joiner" 
+        };
+        const formattedGuest: Record<string, any> = {};
+        Object.entries(guestRowData).forEach(([key, value]) => {
+          const actualHeader = findColumnKey(headers, key);
+          if (actualHeader) formattedGuest[actualHeader] = value;
         });
+        rowsToAdd.push(formattedGuest);
     });
 
-    // 5. WRITE
-    for (const rowPayload of rowsToAdd) {
-        const formattedPayload: Record<string, any> = {};
-        Object.entries(rowPayload).forEach(([key, value]) => {
-           const actualHeader = findColumnKey(headers, key);
-           if (actualHeader) formattedPayload[actualHeader] = value;
-        });
-        await rawSheet.addRow(formattedPayload);
-    }
+    // CRITICAL FIX: Use addRows (plural) to write everything in ONE single API call.
+    // This prevents race conditions that wipe your headers.
+    await rawSheet.addRows(rowsToAdd);
     
-    // --- RETURN FULL DATA FOR TICKET ---
     return { 
         success: true, 
         message: "Booking Confirmed!", 
@@ -280,6 +269,7 @@ export async function submitBooking(prevState: any, formData: FormData): Promise
     };
 
   } catch (error) {
-    return { success: false, message: "System Error", refCode: '' };
+    console.error("SUBMIT ERROR:", error);
+    return { success: false, message: "System Error. Please try again.", refCode: '' };
   }
 }
