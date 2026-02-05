@@ -165,6 +165,9 @@ export async function submitBooking(prevState: any, formData: FormData): Promise
     const rawSheet = doc.sheetsByTitle["Raw_Intake"];
     if (!rawSheet) throw new Error("Database sheet 'Raw_Intake' not found.");
 
+    // --- 🕒 START TIMER (Unoptimized) ---
+    console.time("Google Sheets Transaction");
+
     await rawSheet.loadHeaderRow();
     const headers = rawSheet.headerValues;
     const rows = await rawSheet.getRows();
@@ -177,19 +180,24 @@ export async function submitBooking(prevState: any, formData: FormData): Promise
     if (duplicate && data.type !== 'Reschedule') {
          const existingRef = String(duplicate.get(KEY_CLIENT) || "");
          
-         // FIX: Fetch the actual data so the Ticket renders correctly
          const lookupRes = await lookupBooking(existingRef);
          
+         // Note: If it's a duplicate, we exit early, so the timer won't finish.
+         // This log is primarily to test the "Happy Path" (New Booking).
          return { 
             success: true, 
             message: "Booking already exists.", 
             refCode: existingRef,
-            // Pass the found data, or fallback to empty if lookup fails (unlikely)
             data: lookupRes.success && lookupRes.data ? (lookupRes.data as any) : undefined
          };
     }
 
     const availResult = await checkSlotAvailability(data.date, data.branch);
+
+    // --- 🕒 END TIMER (Unoptimized) ---
+    // This measures: Header Fetch + Rows Fetch + Slot Availability Fetch (Sequentially)
+    console.timeEnd("Google Sheets Transaction");
+
     const headcount = 1 + otherPeople.length;
     const currentOccupied = availResult.counts[getStrictTime(data.time)] || 0;
     const limit = BRANCH_LIMITS[shortBranch] || 4;
@@ -258,8 +266,6 @@ export async function submitBooking(prevState: any, formData: FormData): Promise
         rowsToAdd.push(formattedGuest);
     });
 
-    // CRITICAL FIX: Use addRows (plural) to write everything in ONE single API call.
-    // This prevents race conditions that wipe your headers.
     await rawSheet.addRows(rowsToAdd);
     
     return { 
