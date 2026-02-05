@@ -183,7 +183,7 @@ export default function Ticket({ data, refCode }: TicketProps) {
         {/* --- 1. ACTION INSTRUCTION BANNER (MINIMALIST) --- */}
         <div className={`${branchInfo.bg} text-white p-4 text-center`}>
             <span className="text-sm font-black uppercase tracking-widest">
-                Take a Screenshot & Send via Facebook
+                Take a Screenshot & Send us a copy
             </span>
         </div>
 
