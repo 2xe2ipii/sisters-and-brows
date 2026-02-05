@@ -276,6 +276,7 @@ export async function submitBooking(prevState: any, formData: FormData): Promise
             firstName: data.firstName,
             lastName: data.lastName,
             phone: data.phone,
+            fbLink: data.fbLink,
             branch: data.branch,
             date: data.date,
             time: displayTime,
