@@ -192,19 +192,19 @@ export async function submitBooking(prevState: any, formData: FormData): Promise
          };
     }
 
-    const availResult = await checkSlotAvailability(data.date, data.branch);
+    // const availResult = await checkSlotAvailability(data.date, data.branch);
 
     // --- 🕒 END TIMER (Unoptimized) ---
     // This measures: Header Fetch + Rows Fetch + Slot Availability Fetch (Sequentially)
     console.timeEnd("Google Sheets Transaction");
 
     const headcount = 1 + otherPeople.length;
-    const currentOccupied = availResult.counts[getStrictTime(data.time)] || 0;
+    // const currentOccupied = availResult.counts[getStrictTime(data.time)] || 0;
     const limit = BRANCH_LIMITS[shortBranch] || 4;
 
-    if (currentOccupied + headcount > limit) {
-         return { success: false, message: `Not enough slots. Available: ${Math.max(0, limit - currentOccupied)}`, refCode: '' };
-    }
+    // if (currentOccupied + headcount > limit) {
+    //      return { success: false, message: `Not enough slots. Available: ${Math.max(0, limit - currentOccupied)}`, refCode: '' };
+    // }
 
     let finalRefCode = generateRefCode(); 
     if (data.type === 'Reschedule' && data.oldRefCode) {
