@@ -73,6 +73,24 @@ const getBranchStyle = (rawName: string) => {
             light: "bg-emerald-50"
         };
     }
+    if (n.includes('marikina')) {
+        return { 
+            name: "Marikina", 
+            color: "text-[#ffbab2]", 
+            border: "border-[#ffbab2]/30",
+            bg: "bg-[#ffbab2]",
+            light: "bg-[#ffbab2]/10"
+        };
+    }
+    if (n.includes('calamba')) {
+        return { 
+            name: "Calamba", 
+            color: "text-[#c6c3c3]", 
+            border: "border-[#c6c3c3]/30",
+            bg: "bg-[#c6c3c3]",
+            light: "bg-[#c6c3c3]/10"
+        };
+    }
 
     // Default
     return { 
