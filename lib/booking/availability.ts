@@ -1,5 +1,5 @@
 import { getDoc } from '@/lib/googleSheets';
-import { normalizeDate, normalizeStr, getStrictTime, findColumnKey } from './utils';
+import { normalizeDate, normalizeStr, normalizePhone, getStrictTime, findColumnKey } from './utils';
 import { getDynamicConfig } from './config';
 import { unstable_cache } from 'next/cache';
 
@@ -125,33 +125,33 @@ export async function checkSlotAvailability(date: string, branch: string) {
 export async function checkDuplicate(data: any, headers: string[], rows: any[]) {
     // This function expects 'rows' passed from the Page/Action, 
     // which usually fetches fresh data. 
-    // If you want to use the cache here too, you'll need to refactor how 
-    // 'checkDuplicate' is called in actions.ts.
     
     const targetYear = new Date(data.date).getFullYear();
     const targetDate = normalizeDate(data.date, targetYear);
-    const cleanTargetTime = getStrictTime(data.time);
+    // REMOVED: const cleanTargetTime = getStrictTime(data.time); 
+    // REASON: We want to catch duplicates even if they changed times (same day).
     
     const KEY_DATE = findColumnKey(headers, "DATE");
-    const KEY_TIME = findColumnKey(headers, "TIME");
+    // const KEY_TIME = findColumnKey(headers, "TIME");
     const KEY_FULLNAME = findColumnKey(headers, "FULL NAME");
     const KEY_PHONE = findColumnKey(headers, "Contact Number");
 
-    if (KEY_DATE && KEY_TIME && KEY_FULLNAME && KEY_PHONE) {
+    if (KEY_DATE && KEY_FULLNAME && KEY_PHONE) {
         const fullNameInput = normalizeStr(`${data.firstName} ${data.lastName}`);
+        const phoneInput = normalizePhone(data.phone);
         
         return rows.find((row: any) => {
             const rDate = normalizeDate(String(row.get(KEY_DATE) || ""), targetYear);
-            const rTime = getStrictTime(String(row.get(KEY_TIME) || ""));
+            // const rTime = getStrictTime(String(row.get(KEY_TIME) || ""));
             const rName = normalizeStr(String(row.get(KEY_FULLNAME) || ""));
-            const rPhone = normalizeStr(String(row.get(KEY_PHONE) || ""));
+            const rPhone = normalizePhone(String(row.get(KEY_PHONE) || ""));
             const status = String(row.get("STATUS") || "").toLowerCase();
 
             return (
                !status.includes("cancel") &&
                rDate === targetDate &&
-               rTime === cleanTargetTime &&
-               (rName === fullNameInput || rPhone === normalizeStr(data.phone))
+               // Match EITHER Name OR Phone (Robust Check)
+               (rName === fullNameInput || (phoneInput.length > 6 && rPhone === phoneInput))
             );
         });
     }

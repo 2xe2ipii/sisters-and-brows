@@ -8,7 +8,16 @@ export function generateRefCode() {
 }
 
 export function normalizeStr(str: any): string { 
-  return String(str || "").trim().toLowerCase(); 
+  // Collapse multiple spaces into one single space
+  return String(str || "").trim().toLowerCase().replace(/\s+/g, ' '); 
+}
+
+export function normalizePhone(str: any): string {
+  if (!str) return "";
+  // Remove all non-digits first
+  let clean = String(str).replace(/\D/g, '');
+  // Remove leading zero if present (e.g. 0917 -> 917)
+  return clean.replace(/^0+/, '');
 }
 
 export function normalizeDate(raw: any, targetYear?: number): string {

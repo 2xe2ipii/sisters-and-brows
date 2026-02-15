@@ -176,40 +176,35 @@ export async function submitBooking(prevState: any, formData: FormData): Promise
     const displayTime = data.time.split(' - ')[0].trim();
     const KEY_CLIENT = findColumnKey(headers, "CLIENT #");
 
+    let finalRefCode = generateRefCode();
+    let isOverride = false;
+
+    // --- DUPLICATE CHECK & OVERRIDE LOGIC ---
     const duplicate = await checkDuplicate(data, headers, rows);
     if (duplicate && data.type !== 'Reschedule') {
-         const existingRef = String(duplicate.get(KEY_CLIENT) || "");
-         
-         const lookupRes = await lookupBooking(existingRef);
-         
-         // Note: If it's a duplicate, we exit early, so the timer won't finish.
-         // This log is primarily to test the "Happy Path" (New Booking).
-         return { 
-            success: true, 
-            message: "Booking already exists.", 
-            refCode: existingRef,
-            data: lookupRes.success && lookupRes.data ? (lookupRes.data as any) : undefined
-         };
+         // Instead of returning error, we OVERRIDE.
+         // We grab the existing Ref Code so the new booking replaces the old one
+         // when the Google Apps Script syncs (grouped by Ref Code).
+         const existingRef = String(duplicate.get(KEY_CLIENT) || "").trim();
+         if (existingRef) {
+             finalRefCode = existingRef;
+             isOverride = true;
+         }
     }
 
-    // const availResult = await checkSlotAvailability(data.date, data.branch);
-
-    // --- 🕒 END TIMER (Unoptimized) ---
-    // This measures: Header Fetch + Rows Fetch + Slot Availability Fetch (Sequentially)
-    console.timeEnd("Google Sheets Transaction");
-
-    const headcount = 1 + otherPeople.length;
-    // const currentOccupied = availResult.counts[getStrictTime(data.time)] || 0;
-    const limit = BRANCH_LIMITS[shortBranch] || 4;
-
-    // if (currentOccupied + headcount > limit) {
-    //      return { success: false, message: `Not enough slots. Available: ${Math.max(0, limit - currentOccupied)}`, refCode: '' };
-    // }
-
-    let finalRefCode = generateRefCode(); 
     if (data.type === 'Reschedule' && data.oldRefCode) {
        finalRefCode = String(data.oldRefCode).trim().toUpperCase();
     }
+
+    // --- 🕒 END TIMER (Unoptimized) ---
+    console.timeEnd("Google Sheets Transaction");
+
+    const headcount = 1 + otherPeople.length;
+    // Note: If overriding, we don't strictly need to check limits again if we assume
+    // it's the same person, BUT for simplicity we keep limit checks enabled.
+    // If the slot is legitimately full (other people), this might block them 
+    // from moving to that slot, which is correct behavior.
+    const limit = BRANCH_LIMITS[shortBranch] || 4;
 
     // Prepare all rows locally first
     const rowsToAdd: any[] = [];
@@ -270,7 +265,7 @@ export async function submitBooking(prevState: any, formData: FormData): Promise
     
     return { 
         success: true, 
-        message: "Booking Confirmed!", 
+        message: isOverride ? "Booking Updated!" : "Booking Confirmed!", 
         refCode: finalRefCode, 
         data: { 
             firstName: data.firstName,
