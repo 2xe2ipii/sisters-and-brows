@@ -70,7 +70,10 @@ const DEFAULT_LOCATIONS = [
   { name: "San Pablo, Laguna", code: "SP", limit: 2 },
   { name: "Novaliches, Quezon City", code: "NV", limit: 4 },
   { name: "Dasmariñas, Cavite", code: "DM", limit: 6 },
-  { name: "Comembo, Taguig", code: "TG", limit: 4 }
+  { name: "Comembo, Taguig", code: "TG", limit: 4 },
+  { name: "Monumento, Caloocan", code: "MN", limit: 4 },
+  { name: "Las Piñas", code: "LSP", limit: 4 },
+  { name: "Marilao, Bulacan", code: "MLO", limit: 4 }
 ];
 
 const CACHE_TIME = process.env.NODE_ENV === 'development' ? 30 : 3600;

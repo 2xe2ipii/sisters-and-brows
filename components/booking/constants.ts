@@ -24,5 +24,8 @@ export const BRANCHES = [
   "San Pablo, Laguna",
   "Novaliches, Quezon City",
   "Dasmariñas, Cavite",
-  "Comembo, Taguig"
+  "Comembo, Taguig",
+  "Monumento, Caloocan",
+  "Las Piñas",
+  "Marilao, Bulacan"
 ];

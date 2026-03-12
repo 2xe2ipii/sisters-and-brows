@@ -83,12 +83,39 @@ const getBranchStyle = (rawName: string) => {
         };
     }
     if (n.includes('calamba')) {
-        return { 
-            name: "Calamba", 
-            color: "text-[#c6c3c3]", 
+        return {
+            name: "Calamba",
+            color: "text-[#c6c3c3]",
             border: "border-[#c6c3c3]/30",
             bg: "bg-[#c6c3c3]",
             light: "bg-[#c6c3c3]/10"
+        };
+    }
+    if (n.includes('monumento') || n.includes('caloocan')) {
+        return {
+            name: "Monumento",
+            color: "text-[#EAC392]",
+            border: "border-[#EAC392]/30",
+            bg: "bg-[#EAC392]",
+            light: "bg-[#EAC392]/10"
+        };
+    }
+    if (n.includes('las piñas') || n.includes('las pinas')) {
+        return {
+            name: "Las Piñas",
+            color: "text-[#3DD4DA]",
+            border: "border-[#3DD4DA]/30",
+            bg: "bg-[#3DD4DA]",
+            light: "bg-[#3DD4DA]/10"
+        };
+    }
+    if (n.includes('marilao') || n.includes('bulacan')) {
+        return {
+            name: "Marilao",
+            color: "text-[#E070D8]",
+            border: "border-[#E070D8]/30",
+            bg: "bg-[#E070D8]",
+            light: "bg-[#E070D8]/10"
         };
     }
 
