@@ -9,7 +9,7 @@ import { fetchServices } from '@/app/actions';
 // --- IMPROVED HELPER FUNCTION TO CONVERT GOOGLE DRIVE LINKS ---
 const getDirectImageUrl = (url: string): string => {
   if (!url) return '/bundleA_3999.jpg'; // Default fallback
-  
+
   // If it's a Google Drive link, convert it to direct image URL
   if (url.includes('drive.google.com')) {
     // Handle both sharing link formats:
@@ -17,24 +17,58 @@ const getDirectImageUrl = (url: string): string => {
     // 2. https://drive.google.com/open?id=FILE_ID
     const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
     const idMatch = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-    
+
     const fileId = match?.[1] || idMatch?.[1];
-    
+
     if (fileId) {
       return `https://drive.google.com/uc?export=view&id=${fileId}`;
     }
   }
-  
+
   // Otherwise return as-is (for local paths or other URLs)
   return url;
 };
+
+// --- LOCAL IMAGE OVERRIDES ---
+// Cloudinary fetches were failing for these IDs; serve from public/new_images instead.
+// Keyed by service id — overrides whatever the sheet returns.
+const LOCAL_IMAGE_OVERRIDES: Record<string, string> = {
+  'bundle-a': '/new_images/bundle_a.jpg',
+  'bundle-b': '/new_images/bundle_b.jpg',
+  'bundle-c': '/new_images/bundle_c.jpg',
+  'bundle-d': '/new_images/bundle_d.jpg',
+  'bundle-e': '/new_images/bundle_e.jpg',
+  'mm-1': '/new_images/mm1.jpg',
+  'mm-2': '/new_images/mm2.jpg',
+  'mm-3': '/new_images/mm3.jpg',
+  'mm-4': '/new_images/mm4.jpg',
+  'mm-5': '/new_images/mm5.jpg',
+  'mm-6': '/new_images/mm6.jpg',
+  'mm-7': '/new_images/mm7.jpg',
+  'mm-8': '/new_images/mm8.jpg',
+  'mm-9': '/new_images/mm9.jpg',
+  'mm-10': '/new_images/mm10.jpg',
+  '9d-micro': '/9d_microblading.jpg',
+};
+
+const resolveServiceImage = (service: { id?: string; image?: string }): string => {
+  if (service.id && LOCAL_IMAGE_OVERRIDES[service.id]) {
+    return LOCAL_IMAGE_OVERRIDES[service.id];
+  }
+  return getDirectImageUrl(service.image || '');
+};
+
+// Branches that offer Eyelash Extension services.
+const EYELASH_BRANCHES = ['Parañaque, Metro Manila', 'Monumento, Caloocan'];
+const isEyelashBranch = (branch?: string) => !!branch && EYELASH_BRANCHES.includes(branch);
 
 // --- FALLBACK DATA ---
 const DEFAULT_SERVICES = [
   { id: 'bundle-a', name: 'Bundle A', price: '₱3,999', category: 'Bundles', image: '/bundleA_3999.jpg', desc: 'Premium value package' },
   { id: 'bundle-b', name: 'Bundle B', price: '₱4,999', category: 'Bundles', image: '/bundleB_4999.jpg', desc: 'Complete brow & care package' },
   { id: 'bundle-c', name: 'Bundle C', price: '₱5,499', category: 'Bundles', image: '/bundleC_5499.jpg', desc: 'Ultimate aesthetic package' },
-  { id: 'bundle-d', name: 'Bundle D', price: '₱6,499', category: 'Bundles', image: '/bundleD_6499.jpg', desc: 'Full service aesthetic suite' },
+  { id: 'bundle-d', name: 'Bundle D', price: '₱5,499', category: 'Bundles', image: '/bundleD_6499.jpg', desc: 'Full service aesthetic suite' },
+  { id: 'bundle-e', name: 'Bundle E', price: '₱6,499', category: 'Bundles', image: '/new_images/bundle_e.jpg', desc: 'Top-tier premium experience' },
   { id: 'mm-1', name: 'Mix & Match 1', price: '₱2,800', category: 'Mix & Match', image: '/mm1.jpg', desc: 'Custom combination' },
   { id: 'mm-2', name: 'Mix & Match 2', price: '₱2,800', category: 'Mix & Match', image: '/mm2.jpg', desc: 'Custom combination' },
   { id: 'mm-3', name: 'Mix & Match 3', price: '₱3,300', category: 'Mix & Match', image: '/mm3.jpg', desc: 'Custom combination' },
@@ -54,14 +88,14 @@ const DEFAULT_SERVICES = [
   { id: 'derma-pen', name: 'Derma Pen', price: '₱3,000', category: 'Skin', image: '/derma_pen.jpg', desc: 'Microneedling treatment' },
   { id: 'scalp', name: 'Scalp Micro', price: '₱5,000+', category: 'Skin', image: '/scalp_micropigmentation.jpg', desc: 'Hair density illusion' },
   // Eyelash Extension Services (Parañaque only)
-  { id: 'ee-classic', name: 'EE Classic', price: '₱499', category: 'Eyelash', image: '/classic.png', desc: 'Classic eyelash extension', branches: ['Parañaque, Metro Manila'] },
-  { id: 'ee-natural', name: 'EE Natural Look', price: '₱699', category: 'Eyelash', image: '/natural_look.png', desc: 'Natural looking lashes', branches: ['Parañaque, Metro Manila'] },
-  { id: 'ee-wet', name: 'EE Wet Set', price: '₱699', category: 'Eyelash', image: '/wet_set.png', desc: 'Wet set effect', branches: ['Parañaque, Metro Manila'] },
-  { id: 'ee-hybrid', name: 'EE Hybrid', price: '₱799', category: 'Eyelash', image: '/hybrid.png', desc: 'Hybrid classic and volume', branches: ['Parañaque, Metro Manila'] },
-  { id: 'ee-whispy', name: 'EE Whispy', price: '₱799', category: 'Eyelash', image: '/whispy.png', desc: 'Whispy wispy effect', branches: ['Parañaque, Metro Manila'] },
-  { id: 'ee-anime', name: 'EE Anime', price: '₱899', category: 'Eyelash', image: '/anime.png', desc: 'Anime style', branches: ['Parañaque, Metro Manila'] },
-  { id: 'ee-wispy-volume', name: 'EE Wispy Volume', price: '₱1199', category: 'Eyelash', image: '/wispy_volume.png', desc: 'Wispy with volume', branches: ['Parañaque, Metro Manila'] },
-  { id: 'ee-mega-volume', name: 'EE Mega Volume', price: '₱1199', category: 'Eyelash', image: '/mega_volume.png', desc: 'Maximum volume look', branches: ['Parañaque, Metro Manila'] }
+  { id: 'ee-classic', name: 'EE Classic', price: '₱499', category: 'Eyelash', image: '/classic.png', desc: 'Classic eyelash extension', branches: ['Parañaque, Metro Manila', 'Monumento, Caloocan'] },
+  { id: 'ee-natural', name: 'EE Natural Look', price: '₱699', category: 'Eyelash', image: '/natural_look.png', desc: 'Natural looking lashes', branches: ['Parañaque, Metro Manila', 'Monumento, Caloocan'] },
+  { id: 'ee-wet', name: 'EE Wet Set', price: '₱699', category: 'Eyelash', image: '/wet_set.png', desc: 'Wet set effect', branches: ['Parañaque, Metro Manila', 'Monumento, Caloocan'] },
+  { id: 'ee-hybrid', name: 'EE Hybrid', price: '₱799', category: 'Eyelash', image: '/hybrid.png', desc: 'Hybrid classic and volume', branches: ['Parañaque, Metro Manila', 'Monumento, Caloocan'] },
+  { id: 'ee-whispy', name: 'EE Whispy', price: '₱799', category: 'Eyelash', image: '/whispy.png', desc: 'Whispy wispy effect', branches: ['Parañaque, Metro Manila', 'Monumento, Caloocan'] },
+  { id: 'ee-anime', name: 'EE Anime', price: '₱899', category: 'Eyelash', image: '/anime.png', desc: 'Anime style', branches: ['Parañaque, Metro Manila', 'Monumento, Caloocan'] },
+  { id: 'ee-wispy-volume', name: 'EE Wispy Volume', price: '₱1199', category: 'Eyelash', image: '/wispy_volume.png', desc: 'Wispy with volume', branches: ['Parañaque, Metro Manila', 'Monumento, Caloocan'] },
+  { id: 'ee-mega-volume', name: 'EE Mega Volume', price: '₱1199', category: 'Eyelash', image: '/mega_volume.png', desc: 'Maximum volume look', branches: ['Parañaque, Metro Manila', 'Monumento, Caloocan'] }
 ];
 
 const CATEGORIES = ["All", "Bundles", "Mix & Match", "Brows", "Lips", "Skin", "Eyes", "Eyelash"];
@@ -93,8 +127,8 @@ export default function ServiceList({ selectedServices, onToggle, selectedBranch
     // 1. BRANCH FILTERING - Eyelash Extension only for Parañaque
     data = data.filter(s => {
       if (s.category === 'Eyelash') {
-        // Only show eyelash services if Parañaque is selected
-        return selectedBranch === 'Parañaque, Metro Manila';
+        // Only show eyelash services for branches that offer them
+        return isEyelashBranch(selectedBranch);
       }
       return true; // All other services visible regardless of branch
     });
@@ -166,8 +200,8 @@ export default function ServiceList({ selectedServices, onToggle, selectedBranch
         ))}
       </div>
 
-      {/* Eyelash Extension Group - Special Component (Only show for Parañaque when in Eyelash category) */}
-      {selectedBranch === 'Parañaque, Metro Manila' && (activeCategory === 'All' || activeCategory === 'Eyelash') && (
+      {/* Eyelash Extension Group - Special Component (Only show for branches that offer eyelash services) */}
+      {isEyelashBranch(selectedBranch) && (activeCategory === 'All' || activeCategory === 'Eyelash') && (
         <EyelashExtensionGroup
           services={servicesData}
           isSelected={selectedServices.some(s => s.startsWith('EE '))}
@@ -203,8 +237,8 @@ export default function ServiceList({ selectedServices, onToggle, selectedBranch
             >
               {/* Image Container */}
               <div className="relative aspect-square w-full bg-slate-100 group-hover:brightness-95 transition-all">
-                <Image 
-                  src={getDirectImageUrl(service.image) || '/bundleA_3999.jpg'} 
+                <Image
+                  src={resolveServiceImage(service) || '/bundleA_3999.jpg'}
                   alt={service.name || 'Service Image'}
                   fill
                   loading="lazy"
@@ -220,7 +254,7 @@ export default function ServiceList({ selectedServices, onToggle, selectedBranch
                 {/* Zoom Button - Explicit interaction to open modal */}
                 <button
                    type="button"
-                   onClick={(e) => { e.stopPropagation(); setPreviewImage(service.image); }}
+                   onClick={(e) => { e.stopPropagation(); setPreviewImage(resolveServiceImage(service)); }}
                    className="absolute bottom-2 left-2 p-1.5 bg-black/30 hover:bg-black/60 backdrop-blur-md rounded-lg text-white/90 hover:text-white transition-all z-20 hover:scale-110"
                 >
                   <ZoomIn className="w-4 h-4" />

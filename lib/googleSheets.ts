@@ -29,7 +29,8 @@ const DEFAULT_SERVICES = [
   { id: 'bundle-a', name: 'Bundle A', price: '₱3,999', category: 'Bundles', image: '/bundleA_3999.jpg', desc: 'Premium value package' },
   { id: 'bundle-b', name: 'Bundle B', price: '₱4,999', category: 'Bundles', image: '/bundleB_4999.jpg', desc: 'Complete brow & care package' },
   { id: 'bundle-c', name: 'Bundle C', price: '₱5,499', category: 'Bundles', image: '/bundleC_5499.jpg', desc: 'Ultimate aesthetic package' },
-  { id: 'bundle-d', name: 'Bundle D', price: '₱6,499', category: 'Bundles', image: '/bundleD_6499.jpg', desc: 'Full service aesthetic suite' },
+  { id: 'bundle-d', name: 'Bundle D', price: '₱5,499', category: 'Bundles', image: '/bundleD_6499.jpg', desc: 'Full service aesthetic suite' },
+  { id: 'bundle-e', name: 'Bundle E', price: '₱6,499', category: 'Bundles', image: '/new_images/bundle_e.jpg', desc: 'Top-tier premium experience' },
   { id: 'mm-1', name: 'Mix & Match 1', price: '₱2,800', category: 'Mix & Match', image: '/mm1.jpg', desc: 'Custom combination' },
   { id: 'mm-2', name: 'Mix & Match 2', price: '₱2,800', category: 'Mix & Match', image: '/mm2.jpg', desc: 'Custom combination' },
   { id: 'mm-3', name: 'Mix & Match 3', price: '₱3,300', category: 'Mix & Match', image: '/mm3.jpg', desc: 'Custom combination' },
@@ -49,14 +50,14 @@ const DEFAULT_SERVICES = [
   { id: 'derma-pen', name: 'Derma Pen', price: '₱3,000', category: 'Skin', image: '/derma_pen.jpg', desc: 'Microneedling treatment' },
   { id: 'scalp', name: 'Scalp Micro', price: '₱5,000+', category: 'Skin', image: '/scalp_micropigmentation.jpg', desc: 'Hair density illusion' },
   // Eyelash Extension Services (Parañaque only)
-  { id: 'ee-classic', name: 'EE Classic', price: '₱499', category: 'Eyelash', image: '/classic.png', desc: 'Classic eyelash extension', branches: ['Parañaque, Metro Manila'] },
-  { id: 'ee-natural', name: 'EE Natural Look', price: '₱699', category: 'Eyelash', image: '/natural_look.png', desc: 'Natural looking lashes', branches: ['Parañaque, Metro Manila'] },
-  { id: 'ee-wet', name: 'EE Wet Set', price: '₱699', category: 'Eyelash', image: '/wet_set.png', desc: 'Wet set effect', branches: ['Parañaque, Metro Manila'] },
-  { id: 'ee-hybrid', name: 'EE Hybrid', price: '₱799', category: 'Eyelash', image: '/hybrid.png', desc: 'Hybrid classic and volume', branches: ['Parañaque, Metro Manila'] },
-  { id: 'ee-whispy', name: 'EE Whispy', price: '₱799', category: 'Eyelash', image: '/whispy.png', desc: 'Whispy wispy effect', branches: ['Parañaque, Metro Manila'] },
-  { id: 'ee-anime', name: 'EE Anime', price: '₱899', category: 'Eyelash', image: '/anime.png', desc: 'Anime style', branches: ['Parañaque, Metro Manila'] },
-  { id: 'ee-wispy-volume', name: 'EE Wispy Volume', price: '₱1199', category: 'Eyelash', image: '/wispy_volume.png', desc: 'Wispy with volume', branches: ['Parañaque, Metro Manila'] },
-  { id: 'ee-mega-volume', name: 'EE Mega Volume', price: '₱1199', category: 'Eyelash', image: '/mega_volume.png', desc: 'Maximum volume look', branches: ['Parañaque, Metro Manila'] }
+  { id: 'ee-classic', name: 'EE Classic', price: '₱499', category: 'Eyelash', image: '/classic.png', desc: 'Classic eyelash extension', branches: ['Parañaque, Metro Manila', 'Monumento, Caloocan'] },
+  { id: 'ee-natural', name: 'EE Natural Look', price: '₱699', category: 'Eyelash', image: '/natural_look.png', desc: 'Natural looking lashes', branches: ['Parañaque, Metro Manila', 'Monumento, Caloocan'] },
+  { id: 'ee-wet', name: 'EE Wet Set', price: '₱699', category: 'Eyelash', image: '/wet_set.png', desc: 'Wet set effect', branches: ['Parañaque, Metro Manila', 'Monumento, Caloocan'] },
+  { id: 'ee-hybrid', name: 'EE Hybrid', price: '₱799', category: 'Eyelash', image: '/hybrid.png', desc: 'Hybrid classic and volume', branches: ['Parañaque, Metro Manila', 'Monumento, Caloocan'] },
+  { id: 'ee-whispy', name: 'EE Whispy', price: '₱799', category: 'Eyelash', image: '/whispy.png', desc: 'Whispy wispy effect', branches: ['Parañaque, Metro Manila', 'Monumento, Caloocan'] },
+  { id: 'ee-anime', name: 'EE Anime', price: '₱899', category: 'Eyelash', image: '/anime.png', desc: 'Anime style', branches: ['Parañaque, Metro Manila', 'Monumento, Caloocan'] },
+  { id: 'ee-wispy-volume', name: 'EE Wispy Volume', price: '₱1199', category: 'Eyelash', image: '/wispy_volume.png', desc: 'Wispy with volume', branches: ['Parañaque, Metro Manila', 'Monumento, Caloocan'] },
+  { id: 'ee-mega-volume', name: 'EE Mega Volume', price: '₱1199', category: 'Eyelash', image: '/mega_volume.png', desc: 'Maximum volume look', branches: ['Parañaque, Metro Manila', 'Monumento, Caloocan'] }
 ];
 
 const DEFAULT_TIME_SLOTS = [
@@ -98,11 +99,11 @@ export const getCachedServices = unstable_cache(
       }));
     } catch (e) {
       console.error("Cache Fetch Error (Services):", e);
-      return DEFAULT_SERVICES; // no cra
+      return DEFAULT_SERVICES;
     }
   },
   ['services-cache'],
-  { revalidate: CACHE_TIME } 
+  { revalidate: CACHE_TIME }
 );
 
 // Cache Config (Time/Locations) (30s in dev, 1hr in production)

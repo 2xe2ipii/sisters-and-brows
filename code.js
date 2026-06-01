@@ -15,7 +15,7 @@
 // CONFIGURATION
 // ========================================
 const CONFIG = {
-  ADMIN_EMAIL: "2xe2ipi@gmail.com", // CHANGE THIS to your email
+  ADMIN_EMAIL: "babalataidle@gmail.com", // CHANGE THIS to your email
   ARCHIVE_AFTER_DAYS: 14,
   MAX_LOCK_WAIT_SECONDS: 30,
   BATCH_SIZE: 500, // Process this many rows at a time

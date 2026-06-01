@@ -100,16 +100,16 @@ export default function BookingForm() {
     fetchSlots();
   }, [selectedDate, selectedBranch, configLoaded]);
 
-  // Branch change effect: Remove eyelash services if switching away from Parañaque
+  // Branch change effect: Remove eyelash services if switching to a branch that doesn't offer them
+  const EYELASH_BRANCHES = ['Parañaque, Metro Manila', 'Monumento, Caloocan'];
   useEffect(() => {
-    if (selectedBranch && selectedBranch !== 'Parañaque, Metro Manila') {
+    if (selectedBranch && !EYELASH_BRANCHES.includes(selectedBranch)) {
       // Check if there are any eyelash services selected
       const hasEyelashServices = selectedServices.some(s => s.startsWith('EE '));
       if (hasEyelashServices) {
         // Remove all eyelash services
         setSelectedServices(prev => prev.filter(s => !s.startsWith('EE ')));
-        // Optionally show a toast/notification here
-        setFormError('Eyelash Extension services are only available in Parañaque. They have been removed from your selection.');
+        setFormError('Eyelash Extension services are only available in Parañaque or Monumento. They have been removed from your selection.');
       }
     }
   }, [selectedBranch]);
